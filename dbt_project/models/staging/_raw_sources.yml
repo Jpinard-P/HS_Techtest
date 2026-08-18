@@ -1,0 +1,88 @@
+version: 2
+
+sources:
+  - name: raw
+    description: >
+      Raw source files provided by the source system: rental property
+      listings, a daily calendar, and an amenities changelog. Read directly
+      from CSV via DuckDB.
+    meta:
+      external_location: "../data/{name}.csv"
+    tables:
+      - name: listings
+        meta:
+          external_location: "../data/LISTINGS.csv"
+        description: Rental property listings. One row per listing.
+        columns:
+          - name: ID
+            description: Unique ID for this listing. Primary key.
+          - name: NAME
+            description: Display name of listing.
+          - name: HOST_ID
+            description: Unique ID for the host who owns this property.
+          - name: HOST_NAME
+            description: Display name of host.
+          - name: HOST_SINCE
+            description: When the host signed up.
+          - name: HOST_LOCATION
+            description: Where the host is based.
+          - name: HOST_VERIFICATIONS
+            description: Array of methods the host can use to verify (JSON-parseable string).
+          - name: NEIGHBORHOOD
+            description: The neighborhood where this listing is located.
+          - name: PROPERTY_TYPE
+            description: Description of the type of property.
+          - name: ROOM_TYPE
+            description: Description of the type of room.
+          - name: ACCOMMODATES
+            description: Number of guests this room can accommodate.
+          - name: BATHROOMS_TEXT
+            description: Number and types of bathrooms available.
+          - name: BEDROOMS
+            description: Number of bedrooms available for use.
+          - name: BEDS
+            description: Number of beds available for use.
+          - name: AMENITIES
+            description: Array of amenities available for guests (JSON-parseable string).
+          - name: PRICE
+            description: The price of this listing as of the start of the date range in CALENDAR.
+          - name: NUMBER_OF_REVIEWS
+            description: The number of reviews this listing has ever received.
+          - name: FIRST_REVIEW
+            description: The date of the first review this listing received.
+          - name: LAST_REVIEW
+            description: The date of the most recent review this listing received.
+          - name: REVIEW_SCORES_RATING
+            description: The average review score of this listing.
+
+      - name: calendar
+        meta:
+          external_location: "../data/CALENDAR.csv"
+        description: Daily availability, pricing, and stay constraints per listing.
+        columns:
+          - name: LISTING_ID
+            description: Unique ID for the listing this row applies to. Part of the primary key.
+          - name: DATE
+            description: Date of availability this row describes. Part of the primary key.
+          - name: AVAILABLE
+            description: "'t' if this property is available on this date, 'f' if not."
+          - name: RESERVATION_ID
+            description: Unique ID for that date's reservation. Foreign key. NULL if there was no reservation on that date.
+          - name: PRICE
+            description: The USD price to rent this property on DATE.
+          - name: MINIMUM_NIGHTS
+            description: The minimum number of nights that must be booked consecutively for this property.
+          - name: MAXIMUM_NIGHTS
+            description: The maximum number of nights that may be booked consecutively for this property.
+
+      - name: amenities_changelog
+        meta:
+          external_location: "../data/AMENITIES_CHANGELOG.csv"
+        description: History of amenity list changes per listing.
+        columns:
+          - name: LISTING_ID
+            description: Unique ID for the listing this row applies to. Part of the primary key.
+          - name: CHANGE_AT
+            description: When the amenities list changed.
+          - name: AMENITIES
+            description: Array of the amenities available as of the change (JSON-parseable string).
