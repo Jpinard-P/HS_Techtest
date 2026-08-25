@@ -1,5 +1,7 @@
 # Rental analytics — data model
 
+[![dbt CI](https://github.com/Jpinard-P/HS_Techtest/actions/workflows/ci.yml/badge.svg)](https://github.com/Jpinard-P/HS_Techtest/actions/workflows/ci.yml)
+
 A dbt project over three source files (`LISTINGS`, `CALENDAR`,
 `AMENITIES_CHANGELOG`) that produces a day/listing mart for revenue,
 occupancy, and point-in-time amenity analysis.
