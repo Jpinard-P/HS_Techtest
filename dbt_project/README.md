@@ -25,7 +25,7 @@ models/
 Verify with:
 
 ```bash
-dbt build      # 59 nodes, 0 errors, 3 intentional warnings (below)
+dbt build      # 49 nodes, 0 errors, 3 intentional warnings (below)
 dbt compile    # analyses are NOT compiled by `build` -- a broken one ships green
 ```
 
@@ -236,6 +236,13 @@ slice. That is also the design's ceiling. In order, the levers are:
 
 58 nodes, 55 passing tests, 3 deliberate warnings.
 
+There were 51. Ten were removed because they could not fail: a `not_null` on
+`has_listing_record` (`x is not null` never returns NULL), on `valid_to`
+(`coalesce` with a literal), on `row_number()` and `count(*)`, on a column the
+model already filters to non-null, and on columns whose only NULL path was
+already guarded by a `not_null` upstream. A test that cannot fail is not
+coverage — it is a line in a report that trains people to skim.
+
 The interesting tests are not the `not_null`s — they are the ones asserting
 that the mart's promises hold:
 
@@ -280,7 +287,7 @@ exercising once a `dev.duckdb` exists.
 | Step | Catches |
 | --- | --- |
 | `dbt parse --no-partial-parse` | Deprecations and YAML errors that a warm partial parse hides |
-| `dbt build` | Model failures and all 56 tests, including the golden-answer guard |
+| `dbt build` | Model failures and all 41 tests, including the golden-answer guard |
 | `dbt compile` | Broken analyses — **`build` does not compile them** |
 | `check_warnings.py` | A *new* data-quality warning appearing |
 | `dbt docs generate` | A docs site that no longer builds |

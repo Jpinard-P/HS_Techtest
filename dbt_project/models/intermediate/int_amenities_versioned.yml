@@ -18,8 +18,6 @@ models:
           - not_null
       - name: version_number
         description: 1-based sequence of this version within the listing, ordered by change_at.
-        tests:
-          - not_null
       - name: amenities
         description: The amenity set in force for this version.
         tests:
@@ -32,8 +30,6 @@ models:
           - not_null
       - name: valid_to
         description: Exclusive end of this version's validity. infinity for the current version.
-        tests:
-          - not_null
       - name: changed_at
         description: The raw CHANGE_AT for this version, unmodified by the backdating applied to valid_from.
       - name: is_current_version

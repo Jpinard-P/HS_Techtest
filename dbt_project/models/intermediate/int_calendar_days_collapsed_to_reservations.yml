@@ -13,8 +13,6 @@ models:
           - not_null
       - name: reservation_id
         description: Source reservation identifier. Not globally unique in this extract.
-        tests:
-          - not_null
       - name: first_night
         description: First night of the stay that is visible inside the loaded calendar.
       - name: last_night

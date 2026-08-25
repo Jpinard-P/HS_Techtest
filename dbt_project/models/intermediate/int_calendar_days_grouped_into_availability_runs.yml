@@ -19,8 +19,6 @@ models:
         description: Last available night of the run.
       - name: run_nights
         description: Length of the run in nights.
-        tests:
-          - not_null
       - name: binding_maximum_nights
         description: >
           The strictest maximum_nights encountered anywhere in the run.

@@ -41,8 +41,6 @@ models:
           no row in LISTINGS, leaving its descriptive columns NULL. Its 365
           days are retained deliberately: excluding them changes the
           amenity-revenue answer from 21.2% to 22.1%.
-        tests:
-          - not_null
 
       - name: month_start_date
         description: First day of this row's month. The intended grouping key for monthly analysis.
@@ -92,8 +90,6 @@ models:
           - not_null
       - name: is_reserved
         description: True if the listing was booked on this day. The occupancy numerator; avg(is_reserved::int) over a period is the occupancy rate.
-        tests:
-          - not_null
       - name: reservation_id
         description: The reservation occupying this night. NULL when the night is available.
       - name: reservation_nights
@@ -115,8 +111,6 @@ models:
           What this night actually earned: nightly_price when reserved, 0 when
           available. Additive across any combination of days, listings, and
           months.
-        tests:
-          - not_null
       - name: minimum_nights
         description: Minimum consecutive nights bookable, as of this day.
       - name: maximum_nights
@@ -157,13 +151,7 @@ models:
           Exact match on 'Air conditioning'. Deliberately not a LIKE: the
           vocabulary also contains 'Hair dryer' and 'Conditioner', which
           '%air%' and '%conditio%' would both wrongly match.
-        tests:
-          - not_null
       - name: has_lockbox
         description: Exact match on 'Lockbox'. The vocabulary also contains 'Lock on bedroom door'.
-        tests:
-          - not_null
       - name: has_first_aid_kit
         description: Exact match on 'First aid kit'.
-        tests:
-          - not_null
