@@ -1,0 +1,40 @@
+version: 2
+
+models:
+  - name: int_amenities_versioned
+    description: >
+      Type-2 versions of each listing's amenity set, derived from the
+      changelog. One row per listing per amenity version, with a half-open
+      validity range [valid_from, valid_to) so that any listing-day resolves to
+      exactly one version.
+
+      The first version of each listing is backdated to -infinity, because the
+      changelog records changes rather than origins and there is no record of
+      what preceded the first entry.
+    columns:
+      - name: listing_id
+        description: Foreign key to stg_listings.listing_id. Note that listing 276450 appears here but not in LISTINGS.
+        tests:
+          - not_null
+      - name: version_number
+        description: 1-based sequence of this version within the listing, ordered by change_at.
+        tests:
+          - not_null
+      - name: amenities
+        description: The amenity set in force for this version.
+        tests:
+          - not_null
+      - name: amenity_count
+        description: Number of amenities in this version. Convenience for measuring amenity churn.
+      - name: valid_from
+        description: Inclusive start of this version's validity. -infinity for the first version.
+        tests:
+          - not_null
+      - name: valid_to
+        description: Exclusive end of this version's validity. infinity for the current version.
+        tests:
+          - not_null
+      - name: changed_at
+        description: The raw CHANGE_AT for this version, unmodified by the backdating applied to valid_from.
+      - name: is_current_version
+        description: True for the latest version of each listing.

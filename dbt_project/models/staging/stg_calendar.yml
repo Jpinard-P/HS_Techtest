@@ -1,0 +1,62 @@
+version: 2
+
+models:
+  - name: stg_calendar
+    description: >
+      One row per listing per calendar day. Cleaned from raw.calendar: exact
+      duplicate rows are collapsed with DISTINCT (found one case, three
+      identical rows for the same listing/date, which broke the documented
+      primary key), and the documented-VARCHAR availability flag and price are
+      cast to real types — see docs/source_type_contract.md.
+    columns:
+      - name: listing_id
+        data_type: INTEGER
+        description: Unique ID for the listing to which this row applies. Part of the Primary Key, and a foreign key to stg_listings.listing_id.
+        tests:
+          - not_null
+          # Warn, not error: listing 276450 has 365 calendar rows but no row in
+          # LISTINGS. See docs/source_type_contract.md.
+          - relationships:
+              arguments:
+                to: ref('stg_listings')
+                field: listing_id
+              config:
+                severity: warn
+
+      - name: calendar_date
+        data_type: DATE
+        description: >
+          Date of availability this row describes. Part of the Primary Key.
+          Narrowed from the documented DATETIME; every source value is
+          midnight. Renamed from DATE, which is a reserved word.
+        tests:
+          - not_null
+
+      - name: is_available
+        data_type: BOOLEAN
+        description: >
+          True if this property is available on this date. Derived from the
+          documented VARCHAR AVAILABLE, which contains 't' if available and
+          'f' if not. Consistent with reservation_id on every row of the
+          current extract.
+        tests:
+          - not_null
+
+      - name: reservation_id
+        data_type: INTEGER
+        description: >
+          Unique ID for that date's reservation. Foreign key. NULL if there
+          was no reservation on that date; the source's literal "NULL"
+          sentinel is mapped to a real NULL at read time.
+
+      - name: calendar_price
+        data_type: DECIMAL(10,2)
+        description: The USD price to rent this property on calendar_date. Cast from the documented VARCHAR. Renamed from PRICE to avoid colliding with stg_listings' listing-level price.
+
+      - name: minimum_nights
+        data_type: INTEGER
+        description: The minimum number of nights that must be booked consecutively for this property.
+
+      - name: maximum_nights
+        data_type: INTEGER
+        description: The maximum number of nights that may be booked consecutively for this property.

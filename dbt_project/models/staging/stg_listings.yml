@@ -1,0 +1,106 @@
+version: 2
+
+models:
+  - name: stg_listings
+    description: >
+      One row per rental listing. Cleaned from raw.listings: rows with a NULL
+      id are dropped (unusable as a join key), the JSON-array string columns
+      (HOST_VERIFICATIONS, AMENITIES) are cast to VARCHAR[] so their contents
+      are queryable, and the documented-VARCHAR columns that actually hold
+      numbers or dates are cast to real types — see
+      docs/source_type_contract.md. Column names are lightly renamed for
+      clarity/consistency with the other staging models (e.g. ID ->
+      listing_id).
+    columns:
+      - name: listing_id
+        data_type: INTEGER
+        description: Unique ID for this listing. Primary Key. Rows with a NULL raw ID are excluded upstream of this model.
+        tests:
+          - unique
+          - not_null
+
+      - name: listing_name
+        data_type: VARCHAR
+        description: Display name of listing. Renamed from NAME.
+
+      - name: host_id
+        data_type: INTEGER
+        description: Unique ID for the Host who owns this property.
+        tests:
+          - not_null
+
+      - name: host_name
+        data_type: VARCHAR
+        description: Display name of Host.
+
+      - name: host_since
+        data_type: TIMESTAMP
+        description: When the Host signed up. Documented as DATETIME, which DuckDB stores and reports as TIMESTAMP.
+
+      - name: host_location
+        data_type: VARCHAR
+        description: Where the Host is based.
+
+      - name: host_verifications
+        data_type: VARCHAR[]
+        description: Array of methods the Host can use to verify. Parsed from the source's JSON-array string; the contents are not interpreted.
+
+      - name: neighborhood
+        data_type: VARCHAR
+        description: The neighborhood where this listing is located.
+
+      - name: property_type
+        data_type: VARCHAR
+        description: Description of the type of property.
+
+      - name: room_type
+        data_type: VARCHAR
+        description: Description of the type of room.
+
+      - name: accommodates
+        data_type: INTEGER
+        description: Number of guests this room can accommodate.
+        tests:
+          - not_null
+
+      - name: bathrooms_text
+        data_type: VARCHAR
+        description: Number and types of bathrooms available.
+
+      - name: bedrooms
+        data_type: INTEGER
+        description: Number of bedrooms available for use. Cast from the documented VARCHAR.
+
+      - name: beds
+        data_type: INTEGER
+        description: Number of beds available for use.
+
+      - name: amenities
+        data_type: VARCHAR[]
+        description: Array of amenities available for guests. Parsed from the source's JSON-array string.
+
+      - name: listing_price
+        data_type: DECIMAL(10,2)
+        description: >
+          The price of this listing as of the start of the date range in
+          CALENDAR, in USD. Cast from the documented VARCHAR, with the
+          source's currency symbol stripped. Renamed from PRICE to avoid
+          colliding with stg_calendar's per-night price.
+
+      - name: number_of_reviews
+        data_type: INTEGER
+        description: The number of reviews this listing has ever received.
+        tests:
+          - not_null
+
+      - name: first_review_date
+        data_type: DATE
+        description: The date of the first review this listing received. Cast from the documented VARCHAR.
+
+      - name: last_review_date
+        data_type: DATE
+        description: The date of the most recent review this listing received. Cast from the documented VARCHAR.
+
+      - name: review_scores_rating
+        data_type: DECIMAL(3,2)
+        description: The average review score of this listing. Cast from the documented VARCHAR.

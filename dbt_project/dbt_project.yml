@@ -25,5 +25,28 @@ clean-targets:         # directories to be removed by `dbt clean`
 
 # Configuring models
 # Full documentation: https://docs.getdbt.com/docs/configuring-models
+# Materialisation by layer. These are baseline defaults; models that need
+# something else configure it in their own file, which is currently only
+# marts/listing_days.sql (incremental -- see its header and README.md).
+#
+#   staging      - views. Thin renames/casts over the CSVs; cheap to recompute,
+#                  and keeping them virtual means there is one less copy of the
+#                  raw data to fall out of date.
+#   intermediate - views in a separate 'intermediate' schema. Not part of the
+#                  analyst contract and not exposed in the production schema,
+#                  but queryable for troubleshooting.
+#   marts        - tables. This is what the reporting layer hits, so it is
+#                  materialised once and read many times.
 models:
-  dbt_project: {}
+  dbt_project:
+    staging:
+      +materialized: view
+    intermediate:
+      # Views in a dedicated schema rather than ephemeral. The guide allows
+      # either; a separate schema keeps these out of the production schema
+      # analysts browse, while still leaving them queryable so a wrong number
+      # in a mart can be traced one layer at a time.
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table

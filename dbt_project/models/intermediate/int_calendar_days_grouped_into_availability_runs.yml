@@ -1,0 +1,34 @@
+version: 2
+
+models:
+  - name: int_calendar_days_grouped_into_availability_runs
+    description: >
+      One row per unbroken run of available nights per listing, found with a
+      gaps-and-islands pass over the calendar. Supplies listing_days with
+      the longest stay each vacancy could accommodate.
+    columns:
+      - name: listing_id
+        description: The listing this run belongs to.
+        tests:
+          - not_null
+      - name: availability_run_key
+        description: Identifies the run within the listing. Unique per listing, not globally.
+      - name: run_start_date
+        description: First available night of the run.
+      - name: run_end_date
+        description: Last available night of the run.
+      - name: run_nights
+        description: Length of the run in nights.
+        tests:
+          - not_null
+      - name: binding_maximum_nights
+        description: >
+          The strictest maximum_nights encountered anywhere in the run.
+          maximum_nights is a per-day column and does vary within a listing in
+          this data, so the binding constraint is the minimum across the run.
+      - name: max_bookable_nights
+        description: least(run_nights, binding_maximum_nights) -- the longest stay this vacancy could actually take.
+      - name: starts_at_calendar_start
+        description: True if the run begins on the calendar's first day, so the real vacancy may be longer.
+      - name: ends_at_calendar_end
+        description: True if the run ends on the calendar's last day, so the real vacancy may be longer.

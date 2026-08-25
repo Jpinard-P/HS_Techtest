@@ -21,17 +21,19 @@ deduped as (
 renamed as (
 
     select
-        "LISTING_ID"                                          as listing_id,
-        "DATE"                                                as calendar_date,
-        "AVAILABLE"                                           as is_available,
-        -- RESERVATION_ID is read as VARCHAR because the source encodes
-        -- "no reservation" as the literal text "NULL" rather than an empty
-        -- field, which blocks DuckDB's numeric type inference. NULLIF
-        -- converts that sentinel to a real NULL before casting.
-        cast(nullif("RESERVATION_ID", 'NULL') as bigint)      as reservation_id,
-        "PRICE"                                               as calendar_price,
-        "MINIMUM_NIGHTS"                                      as minimum_nights,
-        "MAXIMUM_NIGHTS"                                      as maximum_nights
+        "LISTING_ID"                                         as listing_id,
+        -- DATE is documented as DATETIME but every value is midnight and the
+        -- column is half of a daily grain, so it is narrowed to a real date.
+        cast("DATE" as date)                                 as calendar_date,
+        -- AVAILABLE is documented as VARCHAR holding 't' / 'f'.
+        "AVAILABLE" = 't'                                    as is_available,
+        -- The source spells "no reservation" as the literal text NULL; that
+        -- sentinel is mapped to a real NULL at read time (see _staging__sources.yml)
+        -- so this column already arrives as the documented INTEGER.
+        "RESERVATION_ID"                                     as reservation_id,
+        cast("PRICE" as decimal(10, 2))                      as calendar_price,
+        "MINIMUM_NIGHTS"                                     as minimum_nights,
+        "MAXIMUM_NIGHTS"                                     as maximum_nights
 
     from deduped
 

@@ -15,31 +15,35 @@ with source as (
 renamed as (
 
     select
-        "ID"                                                as listing_id,
+        "ID"                                                 as listing_id,
         "NAME"                                               as listing_name,
-        "HOST_ID"                                             as host_id,
-        "HOST_NAME"                                           as host_name,
-        "HOST_SINCE"                                          as host_since,
-        "HOST_LOCATION"                                       as host_location,
-        -- HOST_VERIFICATIONS / AMENITIES arrive as JSON-array strings;
-        -- casting to VARCHAR[] here just makes them queryable list types,
-        -- it does not interpret their contents.
+        "HOST_ID"                                            as host_id,
+        "HOST_NAME"                                          as host_name,
+        "HOST_SINCE"                                         as host_since,
+        "HOST_LOCATION"                                      as host_location,
+        -- HOST_VERIFICATIONS / AMENITIES are documented as VARCHAR parseable
+        -- as JSON; casting to VARCHAR[] here just makes them queryable list
+        -- types, it does not interpret their contents.
         cast("HOST_VERIFICATIONS" as json)::varchar[]        as host_verifications,
-        "NEIGHBORHOOD"                                        as neighborhood,
-        "PROPERTY_TYPE"                                       as property_type,
-        "ROOM_TYPE"                                           as room_type,
-        "ACCOMMODATES"                                        as accommodates,
-        "BATHROOMS_TEXT"                                      as bathrooms_text,
-        "BEDROOMS"                                            as bedrooms,
-        "BEDS"                                                as beds,
-        cast("AMENITIES" as json)::varchar[]                  as amenities,
-        -- PRICE is stored as e.g. "$125.00"; strip the currency symbol so it
-        -- can be used numerically.
-        cast(replace("PRICE", '$', '') as decimal(10, 2))     as listing_price,
-        "NUMBER_OF_REVIEWS"                                   as number_of_reviews,
-        "FIRST_REVIEW"                                        as first_review_date,
-        "LAST_REVIEW"                                         as last_review_date,
-        "REVIEW_SCORES_RATING"                                as review_scores_rating
+        "NEIGHBORHOOD"                                       as neighborhood,
+        "PROPERTY_TYPE"                                      as property_type,
+        "ROOM_TYPE"                                          as room_type,
+        "ACCOMMODATES"                                       as accommodates,
+        "BATHROOMS_TEXT"                                     as bathrooms_text,
+        -- The remaining casts turn documented-VARCHAR columns that hold
+        -- numbers and dates into usable types. They are deliberately strict
+        -- (cast, not try_cast): a value the source contract allows but this
+        -- model can't interpret should fail the build loudly rather than
+        -- silently become NULL.
+        cast("BEDROOMS" as integer)                          as bedrooms,
+        "BEDS"                                               as beds,
+        cast("AMENITIES" as json)::varchar[]                 as amenities,
+        -- PRICE carries a currency symbol, e.g. "$125.00".
+        cast(replace("PRICE", '$', '') as decimal(10, 2))    as listing_price,
+        "NUMBER_OF_REVIEWS"                                  as number_of_reviews,
+        cast("FIRST_REVIEW" as date)                         as first_review_date,
+        cast("LAST_REVIEW" as date)                          as last_review_date,
+        cast("REVIEW_SCORES_RATING" as decimal(3, 2))        as review_scores_rating
 
     from source
 

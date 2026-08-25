@@ -1,0 +1,31 @@
+version: 2
+
+models:
+  - name: int_calendar_days_collapsed_to_reservations
+    description: >
+      One row per reservation per listing, collapsed from the daily calendar.
+      Grain is (listing_id, reservation_id) rather than reservation_id alone,
+      because reservation 836 appears against two listings in this extract.
+    columns:
+      - name: listing_id
+        description: The listing this reservation is for.
+        tests:
+          - not_null
+      - name: reservation_id
+        description: Source reservation identifier. Not globally unique in this extract.
+        tests:
+          - not_null
+      - name: first_night
+        description: First night of the stay that is visible inside the loaded calendar.
+      - name: last_night
+        description: Last night of the stay that is visible inside the loaded calendar.
+      - name: reservation_nights
+        description: Nights of this stay inside the loaded calendar. Understated for stays truncated by either calendar edge.
+      - name: reservation_revenue
+        description: Sum of nightly prices across the visible nights of this stay.
+      - name: average_nightly_price
+        description: Mean nightly price across the visible nights of this stay.
+      - name: starts_at_calendar_start
+        description: True if the stay's first visible night is the calendar's first day, meaning it may have begun earlier.
+      - name: ends_at_calendar_end
+        description: True if the stay's last visible night is the calendar's last day, meaning it may continue after.

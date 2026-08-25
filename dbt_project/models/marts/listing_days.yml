@@ -1,0 +1,169 @@
+version: 2
+
+models:
+  - name: listing_days
+    description: >
+      Reporting mart: one row per listing per calendar day, covering
+      2021-07-12 to 2022-07-11. Built to support period-over-period revenue and
+      occupancy analysis and point-in-time amenity analysis.
+
+      Materialized incrementally on (listing_id, calendar_date) so that days
+      which age out of the source's rolling calendar window are retained rather
+      than lost on the next rebuild. The published window is fully restated
+      each run, because future days change as they sell. See README.md for the
+      reasoning and the scale path.
+
+      The table is not scoped to any analysis period. It covers exactly what the
+      source calendar contains, and every coverage flag on it is derived from
+      the data at run time, so loading more calendar extends the mart and
+      corrects the flags without a code change. Analysis periods belong in the
+      queries that need them -- see the vars used by
+      analyses/02_neighborhood_price_increase.sql.
+
+      Two things to know before using it. First, the loaded calendar does not
+      start or end on month boundaries, so its first and last months are only
+      partly covered (currently 20 days of July 2021 and 11 of July 2022) --
+      filter on is_complete_month for any month-over-month comparison. Second,
+      revenue and nightly_price are different measures: revenue is what a night
+      earned, nightly_price is what it asked for.
+    columns:
+      - name: listing_id
+        description: The listing. Not a foreign key to listings for every row -- see has_listing_record.
+        tests:
+          - not_null
+      - name: calendar_date
+        description: The day. Together with listing_id, the grain of this table.
+        tests:
+          - not_null
+      - name: has_listing_record
+        description: >
+          False for listing 276450, which has calendar and amenity history but
+          no row in LISTINGS, leaving its descriptive columns NULL. Its 365
+          days are retained deliberately: excluding them changes the
+          amenity-revenue answer from 21.2% to 22.1%.
+        tests:
+          - not_null
+
+      - name: month_start_date
+        description: First day of this row's month. The intended grouping key for monthly analysis.
+      - name: calendar_year
+        description: Calendar year of this day.
+      - name: calendar_month
+        description: Calendar month number of this day.
+      - name: day_name
+        description: Weekday name, for day-of-week seasonality.
+      - name: is_weekend
+        description: True for Saturday and Sunday.
+      - name: is_complete_month
+        description: >
+          False where the loaded calendar covers only part of the month --
+          currently July 2021 and July 2022. Computed by comparing days covered
+          against the length of the calendar month, so it reflects the data
+          loaded rather than any fixed date range. Period-over-period
+          comparisons that do not filter on this will read a partly covered
+          month as a collapse in demand.
+        tests:
+          - not_null
+      - name: days_of_month_in_calendar
+        description: >
+          How many days of this row's month the loaded calendar actually
+          covers, for pro-rating a partly covered month rather than dropping it.
+
+      - name: listing_name
+        description: Display name of the listing. NULL where has_listing_record is false.
+      - name: host_id
+        description: Host who owns the property. NULL where has_listing_record is false.
+      - name: neighborhood
+        description: Neighborhood of the listing. NULL where has_listing_record is false.
+      - name: property_type
+        description: Type of property. NULL where has_listing_record is false.
+      - name: room_type
+        description: Type of room. NULL where has_listing_record is false.
+      - name: accommodates
+        description: Guests the listing sleeps. NULL where has_listing_record is false.
+      - name: bedrooms
+        description: Bedrooms available. NULL where has_listing_record is false, and where the source omits it.
+      - name: beds
+        description: Beds available. NULL where has_listing_record is false.
+
+      - name: is_available
+        description: True if the listing was open for booking on this day.
+        tests:
+          - not_null
+      - name: is_reserved
+        description: True if the listing was booked on this day. The occupancy numerator; avg(is_reserved::int) over a period is the occupancy rate.
+        tests:
+          - not_null
+      - name: reservation_id
+        description: The reservation occupying this night. NULL when the night is available.
+      - name: reservation_nights
+        description: Total nights of the reservation this night belongs to, visible within the loaded calendar. NULL on available nights.
+      - name: reservation_first_night
+        description: First visible night of this night's reservation. NULL on available nights.
+      - name: reservation_last_night
+        description: Last visible night of this night's reservation. NULL on available nights.
+
+      - name: nightly_price
+        description: >
+          The price asked for this night, whether or not it sold. Summing this
+          gives potential revenue, not earned revenue -- use revenue for
+          takings and this for pricing analysis.
+        tests:
+          - not_null
+      - name: revenue
+        description: >
+          What this night actually earned: nightly_price when reserved, 0 when
+          available. Additive across any combination of days, listings, and
+          months.
+        tests:
+          - not_null
+      - name: minimum_nights
+        description: Minimum consecutive nights bookable, as of this day.
+      - name: maximum_nights
+        description: Maximum consecutive nights bookable, as of this day.
+
+      - name: availability_run_key
+        description: Identifies the unbroken vacancy this night belongs to, within the listing. NULL on reserved nights.
+      - name: available_run_start_date
+        description: First night of this vacancy. NULL on reserved nights.
+      - name: available_run_end_date
+        description: Last night of this vacancy. NULL on reserved nights.
+      - name: available_run_nights
+        description: Length of this vacancy in nights. NULL on reserved nights.
+      - name: max_bookable_nights
+        description: >
+          Longest stay this vacancy could take: the shorter of the vacancy and
+          the owner's maximum_nights. MAX of this per listing answers "longest
+          possible stay" directly. NULL on reserved nights.
+      - name: available_run_touches_calendar_edge
+        description: >
+          True where the vacancy runs to the start or end of the 365-day
+          loaded calendar, so its length is a lower bound, not a measurement.
+
+      - name: amenities
+        description: >
+          The amenity set in force on this specific day, resolved as-of from
+          the changelog rather than taken from the listing's current state.
+        tests:
+          - not_null
+      - name: amenity_count
+        description: Number of amenities in force on this day.
+      - name: amenity_version_number
+        description: Which changelog version applied on this day.
+      - name: amenities_effective_from
+        description: When the amenity set in force on this day was recorded.
+      - name: has_air_conditioning
+        description: >
+          Exact match on 'Air conditioning'. Deliberately not a LIKE: the
+          vocabulary also contains 'Hair dryer' and 'Conditioner', which
+          '%air%' and '%conditio%' would both wrongly match.
+        tests:
+          - not_null
+      - name: has_lockbox
+        description: Exact match on 'Lockbox'. The vocabulary also contains 'Lock on bedroom door'.
+        tests:
+          - not_null
+      - name: has_first_aid_kit
+        description: Exact match on 'First aid kit'.
+        tests:
+          - not_null

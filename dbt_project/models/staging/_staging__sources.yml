@@ -1,0 +1,162 @@
+version: 2
+
+sources:
+  - name: raw
+    description: >
+      Raw source files provided by the source system: rental property
+      listings, a daily calendar, and an amenities changelog. Read directly
+      from CSV via DuckDB.
+
+      Every column below is reproduced verbatim from the source documentation
+      (Revised January 2026), including its documented data_type, and each
+      table pins those types in its read_csv call so the raw layer
+      materialises to the contract rather than to whatever DuckDB's CSV
+      sniffer infers from the current extract.
+
+      The types are pinned positionally (`types = [...]`). DuckDB's name-keyed
+      `columns = {...}` form is not safer: it also assigns by position, and a
+      name that does not match the file silently renames the column instead of
+      raising. Positional typing is only correct while the files keep the
+      documented column order, which assert_source_columns_match_contract
+      tests.
+
+      Two points where the files and the documentation disagree — the DATETIME
+      spelling, and RESERVATION_ID's textual NULL sentinel — are written up in
+      docs/source_type_contract.md.
+    tables:
+      - name: listings
+        description: Rental property listings. One row per listing.
+        meta:
+          external_location: >
+            read_csv(
+              '../data/LISTINGS.csv',
+              header = true,
+              types = [
+                'INTEGER', 'VARCHAR', 'INTEGER', 'VARCHAR', 'DATETIME',
+                'VARCHAR', 'VARCHAR', 'VARCHAR', 'VARCHAR', 'VARCHAR',
+                'INTEGER', 'VARCHAR', 'VARCHAR', 'INTEGER', 'VARCHAR',
+                'VARCHAR', 'INTEGER', 'VARCHAR', 'VARCHAR', 'VARCHAR'
+              ]
+            )
+        columns:
+          - name: ID
+            data_type: INTEGER
+            description: Unique ID for this listing. Primary Key.
+          - name: NAME
+            data_type: VARCHAR
+            description: Display name of listing.
+          - name: HOST_ID
+            data_type: INTEGER
+            description: Unique ID for the Host who owns this property.
+          - name: HOST_NAME
+            data_type: VARCHAR
+            description: Display name of Host.
+          - name: HOST_SINCE
+            data_type: DATETIME
+            description: When the Host signed up.
+          - name: HOST_LOCATION
+            data_type: VARCHAR
+            description: Where the Host is based.
+          - name: HOST_VERIFICATIONS
+            data_type: VARCHAR
+            description: (Parseable as JSON) Array of methods the Host can use to verify.
+          - name: NEIGHBORHOOD
+            data_type: VARCHAR
+            description: The neighborhood where this listing is located.
+          - name: PROPERTY_TYPE
+            data_type: VARCHAR
+            description: Description of the type of property.
+          - name: ROOM_TYPE
+            data_type: VARCHAR
+            description: Description of the type of room.
+          - name: ACCOMMODATES
+            data_type: INTEGER
+            description: Number of guests this room can accommodate.
+          - name: BATHROOMS_TEXT
+            data_type: VARCHAR
+            description: Number and types of bathrooms available.
+          - name: BEDROOMS
+            data_type: VARCHAR
+            description: Number of bedrooms available for use.
+          - name: BEDS
+            data_type: INTEGER
+            description: Number of beds available for use.
+          - name: AMENITIES
+            data_type: VARCHAR
+            description: (Parseable as JSON) Array of amenities available for guests.
+          - name: PRICE
+            data_type: VARCHAR
+            description: The price of this listing as of the start of the date range in CALENDAR.
+          - name: NUMBER_OF_REVIEWS
+            data_type: INTEGER
+            description: The number of reviews this listing has ever received.
+          - name: FIRST_REVIEW
+            data_type: VARCHAR
+            description: The date of the first review this listing received.
+          - name: LAST_REVIEW
+            data_type: VARCHAR
+            description: The date of the most recent review this listing received.
+          - name: REVIEW_SCORES_RATING
+            data_type: VARCHAR
+            description: The average review score of this listing.
+
+      - name: calendar
+        description: Daily availability, pricing, and stay constraints per listing.
+        meta:
+          # RESERVATION_ID is documented as INTEGER and "If NULL, there was no
+          # reservation on that date", but the file spells that absence as the
+          # four-character text NULL. nullstr maps that sentinel (and empty
+          # fields) to a real NULL so the documented INTEGER type can be applied
+          # at read time instead of being repaired downstream.
+          external_location: >
+            read_csv(
+              '../data/CALENDAR.csv',
+              header = true,
+              nullstr = ['NULL', ''],
+              types = [
+                'INTEGER', 'DATETIME', 'VARCHAR', 'INTEGER', 'VARCHAR',
+                'INTEGER', 'INTEGER'
+              ]
+            )
+        columns:
+          - name: LISTING_ID
+            data_type: INTEGER
+            description: Unique ID for the listing to this which this row applies. Part of the Primary Key.
+          - name: DATE
+            data_type: DATETIME
+            description: Date of availability this row describes. Part of the Primary Key.
+          - name: AVAILABLE
+            data_type: VARCHAR
+            description: Contains 't' if this property is available on this date. Contains 'f' if not.
+          - name: RESERVATION_ID
+            data_type: INTEGER
+            description: Unique ID for that DATE's reservation. Foreign key. If NULL, there was no reservation on that date.
+          - name: PRICE
+            data_type: VARCHAR
+            description: The USD price to rent this property on DATE.
+          - name: MINIMUM_NIGHTS
+            data_type: INTEGER
+            description: The minimum number of nights that must be booked consecutively for this property.
+          - name: MAXIMUM_NIGHTS
+            data_type: INTEGER
+            description: The maximum number of nights that may be booked consecutively for this property.
+
+      - name: amenities_changelog
+        description: History of amenity list changes per listing.
+        meta:
+          external_location: >
+            read_csv(
+              '../data/AMENITIES_CHANGELOG.csv',
+              header = true,
+              types = ['INTEGER', 'DATETIME', 'VARCHAR']
+            )
+        columns:
+          - name: LISTING_ID
+            data_type: INTEGER
+            description: Unique ID for the listing to this which this row applies. Part of the Primary Key.
+          - name: CHANGE_AT
+            data_type: DATETIME
+            description: When the amenities list changed.
+          - name: AMENITIES
+            data_type: VARCHAR
+            description: (Parseable as JSON) Array of the amenities available as of the change.

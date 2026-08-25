@@ -1,0 +1,34 @@
+version: 2
+
+models:
+  - name: stg_amenities_changelog
+    description: >
+      One row per amenities-list change per listing. Cleaned from
+      raw.amenities_changelog: the AMENITIES JSON-array string is cast to
+      VARCHAR[].
+    columns:
+      - name: listing_id
+        data_type: INTEGER
+        description: Unique ID for the listing to which this row applies. Part of the Primary Key, and a foreign key to stg_listings.listing_id.
+        tests:
+          - not_null
+          # Warn, not error: listing 276450 has changelog rows but no row in
+          # LISTINGS. See docs/source_type_contract.md.
+          - relationships:
+              arguments:
+                to: ref('stg_listings')
+                field: listing_id
+              config:
+                severity: warn
+
+      - name: change_at
+        data_type: TIMESTAMP
+        description: >
+          When the amenities list changed. Part of the Primary Key. Documented
+          as DATETIME, which DuckDB stores and reports as TIMESTAMP.
+        tests:
+          - not_null
+
+      - name: amenities
+        data_type: VARCHAR[]
+        description: Array of the amenities available as of the change. Parsed from the source's JSON-array string.
