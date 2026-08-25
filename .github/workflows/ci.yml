@@ -1,0 +1,83 @@
+name: dbt CI
+
+# The whole project runs on DuckDB against CSVs committed to the repo, so CI
+# needs no warehouse, no credentials, and no secrets. A run is a full rebuild
+# from empty.
+#
+# There is deliberately no CD half: there is no production warehouse to deploy
+# to. When there is one, the deploy job is `dbt build --target prod` gated on
+# this workflow passing.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DBT_PROFILES_DIR: ${{ github.workspace }}/dbt_project
+
+jobs:
+  build:
+    name: Build, test and compile
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dbt_project
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # Matches local development. Drop to "3.12" if a runner image lacks 3.14.
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dbt
+        run: pip install -r ../requirements.txt
+
+      - name: Check project parses cleanly
+        # --no-partial-parse because some deprecations only surface on a cold parse
+        run: dbt parse --no-partial-parse
+
+      - name: Build models and run tests
+        # Includes assert_published_answers_hold, which pins the three published
+        # business answers. 3 warnings are expected -- see the next step.
+        run: dbt build
+
+      - name: Compile analyses
+        # `dbt build` does NOT compile analyses. A broken analysis will otherwise
+        # pass the whole suite unnoticed, which has happened once already.
+        run: dbt compile
+
+      - name: Check for new data-quality warnings
+        run: python ../.github/scripts/check_warnings.py
+
+      - name: Generate documentation
+        run: dbt docs generate
+
+      - name: Upload docs site
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-docs
+          path: |
+            dbt_project/target/index.html
+            dbt_project/target/manifest.json
+            dbt_project/target/catalog.json
+          retention-days: 14
+
+      - name: Upload run results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-run-results
+          path: dbt_project/target/run_results.json
+          retention-days: 14

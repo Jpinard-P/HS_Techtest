@@ -23,9 +23,12 @@ models/
 Verify with:
 
 ```bash
-dbt build      # 58 nodes, 0 errors, 3 intentional warnings (below)
+dbt build      # 59 nodes, 0 errors, 3 intentional warnings (below)
 dbt compile    # analyses are NOT compiled by `build` -- a broken one ships green
 ```
+
+Both run in CI on every push and pull request — see
+[Continuous integration](#continuous-integration).
 
 ---
 
@@ -261,6 +264,54 @@ project should surface, not silently repair:
 
 Full write-up, including the source-type contract and its two unreproducible
 types, is in [`docs/source_type_contract.md`](../docs/source_type_contract.md).
+
+---
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and pull request to `main`.
+Because the whole project runs on DuckDB against CSVs committed to the repo,
+CI needs no warehouse, no credentials, and no secrets — a run is a full
+rebuild from empty, which is exactly the thing local development stops
+exercising once a `dev.duckdb` exists.
+
+| Step | Catches |
+| --- | --- |
+| `dbt parse --no-partial-parse` | Deprecations and YAML errors that a warm partial parse hides |
+| `dbt build` | Model failures and all 56 tests, including the golden-answer guard |
+| `dbt compile` | Broken analyses — **`build` does not compile them** |
+| `check_warnings.py` | A *new* data-quality warning appearing |
+| `dbt docs generate` | A docs site that no longer builds |
+
+Two of those steps exist because of specific things that went wrong here.
+
+**`dbt compile` is a separate step** because `dbt build` does not compile
+analyses. A missing var once broke `02_neighborhood_price_increase` while the
+full 58-node suite stayed green; it surfaced only on a manual rebuild from an
+empty database. CI now runs both.
+
+**`check_warnings.py` pins the known warnings.** Three tests warn rather than
+error, because each reports a source-data problem this project deliberately
+surfaces instead of repairing. The risk with warnings is that they become
+wallpaper — a fourth one scrolls past unread. The script compares the warning
+set against a documented allowlist and fails the build on anything new, while
+also flagging a *disappeared* warning, which usually means a test quietly
+stopped testing anything.
+
+There is deliberately **no CD half**: there is no production warehouse to
+deploy to, and a deploy job with nothing behind it is theatre. When there is
+one, it is a `dbt build --target prod` job gated on this workflow passing.
+
+### The golden-answer test
+
+`assert_published_answers_hold` pins all three published figures — 21.2%, $44,
+159 — as a build-breaking test. They are re-derived independently of
+`analyses/` rather than read from it, so the test and the query can't drift
+into agreeing with each other while both being wrong.
+
+These assert facts about *this extract*, not invariants of the model. If the
+source data is legitimately refreshed, the expected values are meant to be
+updated deliberately, in the same commit that refreshes the data.
 
 ---
 
