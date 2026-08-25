@@ -25,6 +25,18 @@ clean-targets:         # directories to be removed by `dbt clean`
 
 # Configuring models
 # Full documentation: https://docs.getdbt.com/docs/configuring-models
+# Analysis parameters. These belong to a specific business question, not to the
+# data: problem 2 asks for the price increase between two named dates. They are
+# vars rather than literals in the query so that re-running the same analysis
+# over a different period is a flag, not an edit.
+#
+# They currently coincide with the extent of the loaded calendar, which is why
+# the model layer must not assume the two are the same thing -- the models
+# derive coverage from the data, and only this analysis pins these dates.
+vars:
+  price_comparison_start_date: '2021-07-12'
+  price_comparison_end_date: '2022-07-11'
+
 # Materialisation by layer. These are baseline defaults; models that need
 # something else configure it in their own file, which is currently only
 # marts/listing_days.sql (incremental -- see its header and README.md).

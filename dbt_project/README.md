@@ -20,7 +20,12 @@ models/
     └── listings.sql/.yml
 ```
 
-`dbt build` → 58 nodes, 0 errors, 3 intentional warnings (below).
+Verify with:
+
+```bash
+dbt build      # 58 nodes, 0 errors, 3 intentional warnings (below)
+dbt compile    # analyses are NOT compiled by `build` -- a broken one ships green
+```
 
 ---
 
