@@ -1,4 +1,4 @@
-dbt_project:
+rental_analytics:
   target: dev
   outputs:
     dev:

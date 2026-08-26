@@ -1,12 +1,12 @@
-
-# Name your project! Project names should contain only lowercase characters
-# and underscores. A good package name should reflect your organization's
-# name or the intended use of these models
-name: 'dbt_project'
+# Rental analytics: a day/listing mart over LISTINGS, CALENDAR and
+# AMENITIES_CHANGELOG, for revenue, occupancy and point-in-time amenity
+# analysis. The project name prefixes every node's unique_id and keys the
+# `models:` block below, so it is not free to change casually.
+name: 'rental_analytics'
 version: '1.0.0'
 
-# This setting configures which "profile" dbt uses for this project.
-profile: 'dbt_project'
+# Selects the connection in profiles.yml, which must define a matching key.
+profile: 'rental_analytics'
 
 # These configurations specify where dbt should look for different types of files.
 # The `model-paths` config, for example, states that models in this project can be
@@ -50,7 +50,7 @@ vars:
 #   marts        - tables. This is what the reporting layer hits, so it is
 #                  materialised once and read many times.
 models:
-  dbt_project:
+  rental_analytics:
     staging:
       +materialized: view
     intermediate:
