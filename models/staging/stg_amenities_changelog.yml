@@ -20,8 +20,8 @@ models:
               description: >
                 The documented foreign key to stg_listings. Errors rather than
                 warns, for the same reason as the equivalent test on
-                stg_calendar: listing 276450, the only orphan either table
-                carried, is now identified by the id recovery in stg_listings.
+                stg_calendar: every listing referenced here resolves, including
+                276450, whose id is recovered in stg_listings.sql.
               arguments:
                 to: ref('stg_listings')
                 field: listing_id

@@ -13,7 +13,7 @@ models:
       what preceded the first entry.
     columns:
       - name: listing_id
-        description: Foreign key to stg_listings.listing_id. Listing 276450 resolves here only because its ID is recovered in stg_listings; before that it was an orphan.
+        description: Foreign key to stg_listings.listing_id. Listing 276450 resolves only because its ID is recovered in stg_listings.sql; it is nulled in the raw LISTINGS extract.
         data_tests:
           - not_null:
               description: >

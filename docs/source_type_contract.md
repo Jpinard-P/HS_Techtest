@@ -64,11 +64,11 @@ documentation makes:
   identical in every column, so `stg_calendar` collapses them with `DISTINCT`
   and a singular test guards the grain from here on.
 
-- **`CALENDAR` and `AMENITIES_CHANGELOG` referenced a listing that did not
-  exist — now resolved.** Listing `276450` had 365 calendar rows and 2 changelog
-  rows, but no row in `LISTINGS`. It is the listing whose ID was nulled, and the
-  ID is now restored in `stg_listings` rather than in the CSV, so the extract
-  stays byte-identical and the inference stays reviewable and revertible.
+- **`CALENDAR` and `AMENITIES_CHANGELOG` reference a listing whose ID is nulled
+  in `LISTINGS`.** Listing `276450` has 365 calendar rows and 2 changelog rows;
+  the `LISTINGS` row that describes it arrives with a NULL `ID`. `stg_listings`
+  restores the ID rather than the CSV doing so, which keeps the extract
+  byte-identical and the inference reviewable and revertible.
 
   Four independent facts identify the row, and
   `assert_recovered_listing_matches_its_evidence` re-checks them on every build:
@@ -94,10 +94,10 @@ documentation makes:
   4. **Household.** Host `814298` also owns `349347`, *"…South End 1BR 1BA #2"*,
      in the same neighborhood. The recovered row is *"#3"* — the sibling unit.
 
-  With no orphan left, the two `relationships` tests were promoted from
-  `severity: warn` to erroring. A new orphan now means the extract has broken in
-  a way nobody has looked at, rather than a known exception being re-reported.
-  This remains an inference from the data, not a source-system confirmation;
+  Because every referenced listing therefore resolves, the two `relationships`
+  tests error rather than warn: an unresolvable foreign key means the extract
+  has broken in a way nobody has looked at. This remains an inference from the
+  data, not a source-system confirmation;
   that confirmation is still worth obtaining.
 
 - **One reservation id spans two listings.** Reservation `836` appears on both

@@ -44,13 +44,14 @@ models:
                 time series built on this table.
       - name: has_listing_record
         description: >
-          True for every row today. It was false for listing 276450, which had
-          calendar and amenity history but no row in LISTINGS until its ID was
-          recovered in stg_listings. The column is kept rather than dropped
-          because the mart is built on the calendar, not on LISTINGS, so a
-          future extract can orphan a listing again -- and those days must stay
-          in the mart when it does. Excluding 276450's 365 days would have
-          moved the amenity-revenue answer from 21.2% to 22.1%.
+          Whether this row's listing has a descriptive record in LISTINGS.
+          True throughout the current extract. It exists because the mart is
+          built on the calendar spine rather than on LISTINGS: a listing with
+          calendar days but no descriptive row keeps its days here and is
+          flagged, instead of vanishing from the mart through an inner join.
+          That matters -- dropping one such listing's 365 days moves the
+          amenity-revenue answer from 21.2% to 22.1% -- and it makes excluding
+          them a deliberate WHERE clause, which problem 2 uses.
 
       - name: month_start_date
         description: First day of this row's month. The intended grouping key for monthly analysis.

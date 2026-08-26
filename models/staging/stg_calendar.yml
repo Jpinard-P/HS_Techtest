@@ -21,13 +21,12 @@ models:
                 measure.
           - relationships:
               description: >
-                The documented foreign key to stg_listings. Errors rather than
-                warns, which it did not always: the single orphan this table
-                carried, listing 276450, is now identified in stg_listings by
-                the id recovery documented there, so there is no known
-                exception left to tolerate. A calendar row pointing at a
-                listing that does not exist now means the extract has broken in
-                a way nobody has looked at yet, and should stop the build.
+                The documented foreign key to stg_listings. Every listing this
+                table references resolves there, including 276450, whose id is
+                recovered in stg_listings.sql. There is no tolerated exception,
+                so this errors rather than warns: a calendar row pointing at a
+                listing that does not exist means the extract has broken in a
+                way nobody has looked at yet, and should stop the build.
               arguments:
                 to: ref('stg_listings')
                 field: listing_id
