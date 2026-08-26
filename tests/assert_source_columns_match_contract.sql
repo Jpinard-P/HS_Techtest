@@ -36,15 +36,15 @@ actual as (
 
     select 'LISTINGS' as source_file,
            list_transform(Columns, c -> c.name) as columns
-    from sniff_csv('../data/LISTINGS.csv')
+    from sniff_csv('data/LISTINGS.csv')
 
     union all
     select 'CALENDAR', list_transform(Columns, c -> c.name)
-    from sniff_csv('../data/CALENDAR.csv')
+    from sniff_csv('data/CALENDAR.csv')
 
     union all
     select 'AMENITIES_CHANGELOG', list_transform(Columns, c -> c.name)
-    from sniff_csv('../data/AMENITIES_CHANGELOG.csv')
+    from sniff_csv('data/AMENITIES_CHANGELOG.csv')
 
 )
 

@@ -25,11 +25,12 @@ EXPECTED_WARNINGS = {
     "assert_reservation_covers_one_listing",
 }
 
-results_path = pathlib.Path(__file__).resolve().parents[2] / "dbt_project" / "target" / "run_results.json"
+results_path = pathlib.Path(__file__).resolve().parents[2] / "target" / "run_results.json"
 if not results_path.exists():
     sys.exit(f"no run_results.json at {results_path} -- did `dbt build` run?")
 
 results = json.loads(results_path.read_text())
+
 def test_name(unique_id: str) -> str:
     """Strip the `test.<project>.` prefix, and the hash dbt appends to long
     generic-test names (`...__ref_stg_listings_.d6be8ef584`)."""

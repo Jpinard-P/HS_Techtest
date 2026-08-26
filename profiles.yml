@@ -3,5 +3,5 @@ dbt_project:
   outputs:
     dev:
       type: duckdb
-      path: ../data/dev.duckdb
+      path: data/dev.duckdb
       threads: 4
