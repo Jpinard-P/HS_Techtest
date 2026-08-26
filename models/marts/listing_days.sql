@@ -39,14 +39,15 @@
 -- step, and the next move is to materialize them and partition this table on
 -- calendar_date so the restatement predicate can prune.
 --
--- Grain is the calendar, not the listing. Every listing-day that the source
--- calendar knows about survives into this table, including days belonging to
--- listing 276450, which has 365 calendar days and 2 amenity changes but no row
--- in LISTINGS. Joining listings inwards would drop it, and dropping it moves
--- the answer to the amenity-revenue question from 21.2% to 22.1% -- a real
--- revenue difference caused by a join type. Its descriptive columns are NULL
--- and has_listing_record marks it, so it can be excluded deliberately rather
--- than by accident.
+-- Grain is the calendar, not the listing. Every listing-day the source
+-- calendar knows about survives into this table. The case that forced the
+-- choice: listing 276450 arrives with 365 calendar days and 2 amenity changes
+-- but a NULL ID on its LISTINGS row, and dropping those days through an inner
+-- join moves the amenity-revenue answer from 21.2% to 22.1% -- a real revenue
+-- difference caused by a join type. That ID is recovered in stg_listings, so
+-- every row here now has has_listing_record = true; the spine and the flag
+-- stay because they are what turns the next orphan into a flagged row instead
+-- of a silent absence.
 
 with calendar as (
 
@@ -88,6 +89,14 @@ reservations as (
 -- fixed dates, so extending the calendar corrects these flags automatically.
 -- Each day carries the completeness of its month so a comparison can exclude
 -- the partial ones on purpose.
+--
+-- Under the incremental scheme these flags describe the calendar the source
+-- publishes at the time of the run, not what this table has accumulated. A
+-- row retained after its day ages out of the source keeps the flags it was
+-- last restated with, so once retention diverges from the source window the
+-- flags read as "coverage at last restatement" -- fine for the trailing edge
+-- (a month never loses days), but worth knowing before trusting them on
+-- retained history.
 month_coverage as (
 
     select

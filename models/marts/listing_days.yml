@@ -51,7 +51,9 @@ models:
           flagged, instead of vanishing from the mart through an inner join.
           That matters -- dropping one such listing's 365 days moves the
           amenity-revenue answer from 21.2% to 22.1% -- and it makes excluding
-          them a deliberate WHERE clause, which problem 2 uses.
+          them a deliberate WHERE clause, which problem 2's query applies as a
+          guard (in the current build it excludes nothing, since 276450's ID
+          is recovered in staging).
 
       - name: month_start_date
         description: First day of this row's month. The intended grouping key for monthly analysis.
@@ -66,9 +68,11 @@ models:
       - name: is_complete_month
         description: >
           False where the loaded calendar covers only part of the month --
-          currently July 2021 and July 2022. Computed by comparing days covered
-          against the length of the calendar month, so it reflects the data
-          loaded rather than any fixed date range. Period-over-period
+          currently July 2021 and July 2022. Computed on each run by comparing
+          the days the source calendar covers against the length of the
+          calendar month, so it reflects the data loaded rather than any fixed
+          date range. On rows retained after their day ages out of the source,
+          it keeps the value from the last restatement. Period-over-period
           comparisons that do not filter on this will read a partly covered
           month as a collapse in demand.
         data_tests:
@@ -152,7 +156,11 @@ models:
         description: >
           Longest stay this vacancy could take: the shorter of the vacancy and
           the owner's maximum_nights. MAX of this per listing answers "longest
-          possible stay" directly. NULL on reserved nights.
+          possible stay" directly. NULL on reserved nights. minimum_nights is
+          deliberately not applied -- problem 3 asks for availability windows
+          and maximum limits only -- so a vacancy shorter than its own minimum
+          still reports its length here; check minimum_nights before reading
+          this as "a stay this long is offered".
       - name: available_run_touches_calendar_edge
         description: >
           True where the vacancy runs to the start or end of the 365-day

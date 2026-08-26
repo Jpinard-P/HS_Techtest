@@ -8,9 +8,7 @@ version: '1.0.0'
 # Selects the connection in profiles.yml, which must define a matching key.
 profile: 'rental_analytics'
 
-# These configurations specify where dbt should look for different types of files.
-# The `model-paths` config, for example, states that models in this project can be
-# found in the "models/" directory. You probably won't need to change these!
+# Where dbt looks for each kind of file.
 model-paths: ["models"]
 analysis-paths: ["analyses"]
 test-paths: ["tests"]
@@ -41,23 +39,24 @@ vars:
 # something else configure it in their own file, which is currently only
 # marts/listing_days.sql (incremental -- see its header and README.md).
 #
-#   staging      - views. Thin renames/casts over the CSVs; cheap to recompute,
-#                  and keeping them virtual means there is one less copy of the
-#                  raw data to fall out of date.
-#   intermediate - views in a separate 'intermediate' schema. Not part of the
-#                  analyst contract and not exposed in the production schema,
-#                  but queryable for troubleshooting.
+#   staging      - views, own schema. Thin renames/casts over the CSVs; cheap
+#                  to recompute, and keeping them virtual means there is one
+#                  less copy of the raw data to fall out of date.
+#   intermediate - views, own schema. Not part of the analyst contract, but
+#                  queryable for troubleshooting.
 #   marts        - tables. This is what the reporting layer hits, so it is
 #                  materialised once and read many times.
+#
+# Staging and intermediate sit in their own schemas rather than ephemeral or
+# mixed into the marts' schema: the schema analysts browse ('main') holds only
+# the two marts, while every layer stays queryable so a wrong number in a mart
+# can be traced one layer at a time.
 models:
   rental_analytics:
     staging:
       +materialized: view
+      +schema: staging
     intermediate:
-      # Views in a dedicated schema rather than ephemeral. The guide allows
-      # either; a separate schema keeps these out of the production schema
-      # analysts browse, while still leaving them queryable so a wrong number
-      # in a mart can be traced one layer at a time.
       +materialized: view
       +schema: intermediate
     marts:

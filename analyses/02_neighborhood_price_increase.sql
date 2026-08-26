@@ -22,10 +22,13 @@
 --     listing counts once regardless of how many nights it has. Averaging the
 --     daily rows directly would weight listings by their calendar coverage.
 --
--- has_listing_record filters out listing 276450, which has prices but no
--- neighborhood. That is a deliberate exclusion for a neighborhood cut, not an
--- accidental one -- an inner join to the listing table would have done it
--- silently.
+-- The has_listing_record guard excludes any listing with calendar days but
+-- no descriptive record, which a neighborhood cut cannot place. In the
+-- current build it excludes nothing: the one such listing, 276450, has its ID
+-- recovered in stg_listings and lands in Roxbury -- which is why Roxbury
+-- averages 13 listings (-$6.15) rather than 12 ($0.00). The guard stays so
+-- the next orphan is excluded here deliberately and visibly, not silently by
+-- a join.
 
 with comparison_dates as (
 

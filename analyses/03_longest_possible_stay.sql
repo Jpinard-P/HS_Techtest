@@ -54,4 +54,11 @@ join qualifying_days as days
     and days.max_bookable_nights = longest.longest_possible_stay_nights
     and days.calendar_date = days.available_run_start_date
 
+-- if two runs tie for a listing's maximum, report the earlier one rather
+-- than duplicating the listing
+qualify row_number() over (
+    partition by longest.listing_id
+    order by days.available_run_start_date
+) = 1
+
 order by longest.longest_possible_stay_nights desc

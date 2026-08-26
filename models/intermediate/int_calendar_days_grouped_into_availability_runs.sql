@@ -37,9 +37,13 @@ runs as (
         max(calendar_date)  as run_end_date,
         count(*)            as run_nights,
 
-        -- maximum_nights is a per-day column and genuinely varies within one
-        -- listing in this data, so the cap that binds a stay spanning the run
-        -- is the strictest value it would meet, not the first or the last.
+        -- maximum_nights is a per-day column and varies across a listing's
+        -- calendar (though within no single run of this extract), so the cap
+        -- is the strictest value in the run, not the first or last. For a
+        -- stay spanning the whole run that is exact; for a stay spanning part
+        -- of one it is conservative, since only the days the stay covers
+        -- could bind. With no within-run variation today, the two readings
+        -- agree on every run.
         min(maximum_nights) as binding_maximum_nights
 
     from islanded
@@ -60,6 +64,11 @@ final as (
 
         -- The longest bookable stay inside this run: you cannot stay longer
         -- than the run is open, nor longer than the owner permits.
+        -- minimum_nights is deliberately not applied (problem 3 asks for
+        -- availability windows and maximum limits only), and it is not a
+        -- no-op: 58 runs in this extract are shorter than their own minimum,
+        -- so a stay of this length may not actually be offerable. The mart
+        -- carries minimum_nights per day for that check.
         least(run_nights, binding_maximum_nights) as max_bookable_nights,
 
         -- A run touching either end of the loaded calendar is a lower bound,
