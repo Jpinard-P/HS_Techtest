@@ -63,6 +63,11 @@ models:
           the start of the CALENDAR range. Named for what it is so it is not
           mistaken for a current or average price; daily prices live in
           listing_days.
+      - name: price_currency
+        description: >
+          ISO 4217 currency of price_at_calendar_start, resolved from the
+          price's currency marking via the currency_symbols seed. 'USD' for
+          every listing in the current extract.
       - name: number_of_reviews
         description: The number of reviews this listing has ever received.
       - name: first_review_date

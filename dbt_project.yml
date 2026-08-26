@@ -51,6 +51,13 @@ vars:
 # mixed into the marts' schema: the schema analysts browse ('main') holds only
 # the two marts, while every layer stays queryable so a wrong number in a mart
 # can be traced one layer at a time.
+# Seeds are project-owned reference data, not source data. The one seed,
+# currency_symbols, exists for the staging price parsing, so it lives in the
+# staging schema alongside its only consumers.
+seeds:
+  rental_analytics:
+    +schema: staging
+
 models:
   rental_analytics:
     staging:
