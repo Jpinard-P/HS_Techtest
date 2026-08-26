@@ -234,7 +234,7 @@ slice. That is also the design's ceiling. In order, the levers are:
 
 ## Testing
 
-58 nodes, 55 passing tests, 3 deliberate warnings.
+49 nodes, 41 tests — 38 passing, 3 deliberate warnings.
 
 There were 51. Ten were removed because they could not fail: a `not_null` on
 `has_listing_record` (`x is not null` never returns NULL), on `valid_to`
@@ -242,6 +242,14 @@ There were 51. Ten were removed because they could not fail: a `not_null` on
 model already filters to non-null, and on columns whose only NULL path was
 already guarded by a `not_null` upstream. A test that cannot fail is not
 coverage — it is a line in a report that trains people to skim.
+
+Every test carries a `description`, so the reasoning is visible in the docs
+site and in `manifest.json` rather than only in a comment above the query.
+Singular tests are documented in
+[`tests/_tests__singular.yml`](tests/_tests__singular.yml) via dbt's
+`data_tests` block; generic tests carry theirs inline in each model's `.yml`.
+Each description says what breaks if the test fails, which is the part that is
+not readable from the SQL.
 
 The interesting tests are not the `not_null`s — they are the ones asserting
 that the mart's promises hold:

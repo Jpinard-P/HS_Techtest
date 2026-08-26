@@ -9,8 +9,11 @@ models:
     columns:
       - name: listing_id
         description: The listing this run belongs to.
-        tests:
-          - not_null
+        data_tests:
+          - not_null:
+              description: >
+                Re-graining from days to availability runs must carry the
+                listing through; a run belongs to exactly one property.
       - name: availability_run_key
         description: Identifies the run within the listing. Unique per listing, not globally.
       - name: run_start_date

@@ -9,8 +9,12 @@ models:
     columns:
       - name: listing_id
         description: The listing this reservation is for.
-        tests:
-          - not_null
+        data_tests:
+          - not_null:
+              description: >
+                Re-graining from days to reservations must carry the listing
+                through. Without it a stay could not be attributed to a
+                property.
       - name: reservation_id
         description: Source reservation identifier. Not globally unique in this extract.
       - name: first_night
