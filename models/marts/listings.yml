@@ -8,9 +8,10 @@ models:
       listing_days already carries the attributes needed to slice daily
       measures, so joining this to the fact is usually unnecessary.
 
-      Contains only the 49 listings with a row in LISTINGS. Listing 276450 has
-      calendar and amenity history but no descriptive record, so it is absent
-      here while remaining present in listing_days.
+      Contains all 50 listings. That includes 276450, whose ID was nulled in
+      the LISTINGS extract and is restored in stg_listings -- see the header of
+      stg_listings.sql for the evidence, and
+      assert_recovered_listing_matches_its_evidence for the test that pins it.
     columns:
       - name: listing_id
         description: Unique ID for this listing. Primary key.

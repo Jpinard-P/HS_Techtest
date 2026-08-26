@@ -79,6 +79,27 @@ data_tests:
       agree on all 18,250 rows. Downstream occupancy logic uses whichever is
       convenient; this test is what makes that choice safe rather than lucky.
 
+  # -- Recovered data --------------------------------------------------------
+
+  - name: assert_recovered_listing_matches_its_evidence
+    description: >
+      Pins the one inference in the project. stg_listings restores a lost ID,
+      assigning listing_id 276450 to the raw row named "19th Century Luxury |
+      South End | 1BR 1BA #3", which arrived with a NULL ID. That ID is not read
+      from the file -- it is deduced -- so each fact the deduction rests on is
+      re-checked on every build: the row is present exactly once, its
+      listing_price still equals 276450's calendar price on the first day of the
+      loaded calendar (which is what PRICE is documented to mean), and its
+      amenity set still matches one of 276450's own changelog versions.
+
+      It also asserts the *other* NULL-ID row, the synthetic TESTING LISTING
+      with host_id -99999, is still excluded -- so a future widening of the
+      recovery rule cannot quietly pull junk into the mart.
+
+      Without this, a refreshed extract that changed the row would not fail;
+      it would silently attach 365 calendar days and $76,520 of revenue to the
+      wrong listing.
+
   # -- Reservations ----------------------------------------------------------
 
   - name: assert_reservation_nights_are_contiguous
@@ -101,7 +122,9 @@ data_tests:
       753446. That has the shape of an off-by-one where the id blocks meet the
       loaded calendar boundary, but it cannot be resolved from the data alone,
       so it is surfaced rather than silently repaired. The warning is pinned in
-      .github/scripts/check_warnings.py, so it cannot quietly become wallpaper.
+      .github/scripts/check_warnings.py -- now the only entry in that allowlist,
+      since the two relationships warnings were resolved by recovering listing
+      276450's ID rather than by tolerating them.
 
   # -- Amenity SCD2 ----------------------------------------------------------
 

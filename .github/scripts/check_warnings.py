@@ -1,17 +1,19 @@
 """Fail CI when a new data-quality warning appears.
 
-Three tests are configured to warn rather than error, because each surfaces a
-source-data problem this project deliberately reports instead of repairing:
+One test is configured to warn rather than error, because it surfaces a
+source-data problem this project reports instead of repairing:
 
-  * the two `relationships` tests on listing 276450, which has calendar and
-    amenity history but no row in LISTINGS
   * assert_reservation_covers_one_listing, for reservation 836 appearing
     against two listings
 
-Those are known and documented in docs/source_type_contract.md. A *fourth*
-warning means the source data has broken in a new way, which should stop the
-build and be looked at -- not scroll past in a log. A warning that disappears is
-also reported, since it usually means a test stopped testing anything.
+It is known and documented in docs/source_type_contract.md. A *second* warning
+means the source data has broken in a new way, which should stop the build and
+be looked at -- not scroll past in a log. A warning that disappears is also
+reported, since it usually means a test stopped testing anything.
+
+This list was three until listing 276450's id was recovered in stg_listings,
+which resolved the two `relationships` warnings for real rather than by
+widening the allowlist. Entries are meant to leave this set that way.
 """
 
 import json
@@ -20,8 +22,6 @@ import re
 import sys
 
 EXPECTED_WARNINGS = {
-    "relationships_stg_calendar_listing_id__listing_id__ref_stg_listings_",
-    "relationships_stg_amenities_changelog_listing_id__listing_id__ref_stg_listings_",
     "assert_reservation_covers_one_listing",
 }
 

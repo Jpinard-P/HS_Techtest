@@ -18,15 +18,13 @@ models:
                 change in no listing's version sequence.
           - relationships:
               description: >
-                The documented foreign key to stg_listings. Warns rather than
-                errors for the same reason as the equivalent test on
-                stg_calendar: listing 276450 has changelog rows but no row in
-                LISTINGS. Pinned in .github/scripts/check_warnings.py.
+                The documented foreign key to stg_listings. Errors rather than
+                warns, for the same reason as the equivalent test on
+                stg_calendar: listing 276450, the only orphan either table
+                carried, is now identified by the id recovery in stg_listings.
               arguments:
                 to: ref('stg_listings')
                 field: listing_id
-              config:
-                severity: warn
 
       - name: change_at
         data_type: TIMESTAMP

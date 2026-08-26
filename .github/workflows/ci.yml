@@ -46,7 +46,7 @@ jobs:
 
       - name: Build models and run tests
         # Includes assert_published_answers_hold, which pins the three published
-        # business answers. 3 warnings are expected -- see the next step.
+        # business answers. 1 warning is expected -- see the next step.
         run: dbt build
 
       - name: Check for new data-quality warnings

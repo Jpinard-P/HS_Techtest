@@ -21,18 +21,16 @@ models:
                 measure.
           - relationships:
               description: >
-                The documented foreign key to stg_listings. Warns rather than
-                errors: listing 276450 has 365 calendar rows but no row in
-                LISTINGS, a source gap this project surfaces instead of
-                repairing (see docs/source_type_contract.md). The mart keeps
-                those days and flags them with has_listing_record. The warning
-                is pinned in .github/scripts/check_warnings.py so it cannot
-                become wallpaper.
+                The documented foreign key to stg_listings. Errors rather than
+                warns, which it did not always: the single orphan this table
+                carried, listing 276450, is now identified in stg_listings by
+                the id recovery documented there, so there is no known
+                exception left to tolerate. A calendar row pointing at a
+                listing that does not exist now means the extract has broken in
+                a way nobody has looked at yet, and should stop the build.
               arguments:
                 to: ref('stg_listings')
                 field: listing_id
-              config:
-                severity: warn
 
       - name: calendar_date
         data_type: DATE
