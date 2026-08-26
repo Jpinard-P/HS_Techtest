@@ -49,13 +49,18 @@ jobs:
         # business answers. 3 warnings are expected -- see the next step.
         run: dbt build
 
+      - name: Check for new data-quality warnings
+        # Must run directly after `dbt build`: every dbt command overwrites
+        # target/run_results.json, so anything in between (`dbt compile`, `dbt
+        # docs generate`) leaves behind a results file with no tests in it and
+        # this check passes on nothing. The script asserts it is reading a build
+        # rather than trusting this ordering, so a regression fails loudly.
+        run: python .github/scripts/check_warnings.py
+
       - name: Compile analyses
         # `dbt build` does NOT compile analyses. A broken analysis will otherwise
         # pass the whole suite unnoticed, which has happened once already.
         run: dbt compile
-
-      - name: Check for new data-quality warnings
-        run: python .github/scripts/check_warnings.py
 
       - name: Generate documentation
         run: dbt docs generate

@@ -31,6 +31,19 @@ if not results_path.exists():
 
 results = json.loads(results_path.read_text())
 
+# Every dbt command rewrites run_results.json, and only the test-running ones
+# record test results. `dbt compile` leaves a file with 49 results and zero
+# tests in it, against which this check trivially "passes" -- so assert the
+# results came from a command that actually ran the tests, rather than assuming
+# nothing ran between `dbt build` and this script.
+which = results.get("args", {}).get("which")
+if which not in {"build", "test"}:
+    sys.exit(
+        f"{results_path} was written by `dbt {which}`, which runs no tests.\n"
+        "This check must run directly after `dbt build` -- see the step comment "
+        "in .github/workflows/ci.yml."
+    )
+
 def test_name(unique_id: str) -> str:
     """Strip the `test.<project>.` prefix, and the hash dbt appends to long
     generic-test names (`...__ref_stg_listings_.d6be8ef584`)."""

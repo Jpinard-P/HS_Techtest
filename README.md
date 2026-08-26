@@ -288,8 +288,8 @@ exercising once a `dev.duckdb` exists.
 | --- | --- |
 | `dbt parse --no-partial-parse` | Deprecations and YAML errors that a warm partial parse hides |
 | `dbt build` | Model failures and all 41 tests, including the golden-answer guard |
-| `dbt compile` | Broken analyses — **`build` does not compile them** |
 | `check_warnings.py` | A *new* data-quality warning appearing |
+| `dbt compile` | Broken analyses — **`build` does not compile them** |
 | `dbt docs generate` | A docs site that no longer builds |
 
 Two of those steps exist because of specific things that went wrong here.
@@ -306,6 +306,12 @@ wallpaper — a fourth one scrolls past unread. The script compares the warning
 set against a documented allowlist and fails the build on anything new, while
 also flagging a *disappeared* warning, which usually means a test quietly
 stopped testing anything.
+
+It runs *directly* after `dbt build` because every dbt command overwrites
+`target/run_results.json`, and only the test-running ones record test results.
+With `dbt compile` in between — where this step used to sit — the script read a
+results file containing no tests and passed on nothing. It now asserts the
+results came from a build rather than trusting the step order.
 
 There is deliberately **no CD half**: there is no production warehouse to
 deploy to, and a deploy job with nothing behind it is theatre. When there is
