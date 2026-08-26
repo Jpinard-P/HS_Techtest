@@ -12,11 +12,22 @@ models:
       - name: listing_id
         data_type: INTEGER
         description: Unique ID for the listing to which this row applies. Part of the Primary Key, and a foreign key to stg_listings.listing_id.
-        tests:
-          - not_null
-          # Warn, not error: listing 276450 has 365 calendar rows but no row in
-          # LISTINGS. See docs/source_type_contract.md.
+        data_tests:
+          - not_null:
+              description: >
+                Half the documented grain. A NULL listing_id belongs to no
+                property, so the day could not be joined to a listing and
+                would be lost from every per-listing occupancy and revenue
+                measure.
           - relationships:
+              description: >
+                The documented foreign key to stg_listings. Warns rather than
+                errors: listing 276450 has 365 calendar rows but no row in
+                LISTINGS, a source gap this project surfaces instead of
+                repairing (see docs/source_type_contract.md). The mart keeps
+                those days and flags them with has_listing_record. The warning
+                is pinned in .github/scripts/check_warnings.py so it cannot
+                become wallpaper.
               arguments:
                 to: ref('stg_listings')
                 field: listing_id
@@ -29,8 +40,13 @@ models:
           Date of availability this row describes. Part of the Primary Key.
           Narrowed from the documented DATETIME; every source value is
           midnight. Renamed from DATE, which is a reserved word.
-        tests:
-          - not_null
+        data_tests:
+          - not_null:
+              description: >
+                The other half of the documented grain. A NULL date cannot be
+                placed in a month, so the row would vanish from monthly
+                aggregation while still inflating the day counts that
+                occupancy rates divide by.
 
       - name: is_available
         data_type: BOOLEAN
@@ -39,8 +55,12 @@ models:
           documented VARCHAR AVAILABLE, which contains 't' if available and
           'f' if not. Consistent with reservation_id on every row of the
           current extract.
-        tests:
-          - not_null
+        data_tests:
+          - not_null:
+              description: >
+                Occupancy and revenue both split on this flag. A NULL is
+                neither available nor reserved, so it would quietly shrink
+                both the numerator and the denominator instead of failing.
 
       - name: reservation_id
         data_type: INTEGER

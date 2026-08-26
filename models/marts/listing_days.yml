@@ -29,12 +29,19 @@ models:
     columns:
       - name: listing_id
         description: The listing. Not a foreign key to listings for every row -- see has_listing_record.
-        tests:
-          - not_null
+        data_tests:
+          - not_null:
+              description: >
+                Half the mart's grain, and the column
+                assert_listing_days_grain_is_unique groups by -- a NULL would
+                evade that uniqueness check.
       - name: calendar_date
         description: The day. Together with listing_id, the grain of this table.
-        tests:
-          - not_null
+        data_tests:
+          - not_null:
+              description: >
+                The other half of the mart's grain, and the basis of every
+                time series built on this table.
       - name: has_listing_record
         description: >
           False for listing 276450, which has calendar and amenity history but
@@ -60,8 +67,13 @@ models:
           loaded rather than any fixed date range. Period-over-period
           comparisons that do not filter on this will read a partly covered
           month as a collapse in demand.
-        tests:
-          - not_null
+        data_tests:
+          - not_null:
+              description: >
+                The flag analysts filter on to avoid comparing a partial month
+                against a full one. A NULL is dropped by `where
+                is_complete_month` without comment, so the failure mode is a
+                month quietly missing from a comparison rather than an error.
       - name: days_of_month_in_calendar
         description: >
           How many days of this row's month the loaded calendar actually
@@ -86,8 +98,11 @@ models:
 
       - name: is_available
         description: True if the listing was open for booking on this day.
-        tests:
-          - not_null
+        data_tests:
+          - not_null:
+              description: >
+                Occupancy is counted from this flag and revenue is gated on
+                it, so a NULL would understate both without failing anything.
       - name: is_reserved
         description: True if the listing was booked on this day. The occupancy numerator; avg(is_reserved::int) over a period is the occupancy rate.
       - name: reservation_id
@@ -104,8 +119,13 @@ models:
           The price asked for this night, whether or not it sold. Summing this
           gives potential revenue, not earned revenue -- use revenue for
           takings and this for pricing analysis.
-        tests:
-          - not_null
+        data_tests:
+          - not_null:
+              description: >
+                revenue is derived from this column on reserved nights. A NULL
+                price would make revenue NULL, and SUM() skips NULLs -- so the
+                money would disappear from a total that still looked like a
+                valid number.
       - name: revenue
         description: >
           What this night actually earned: nightly_price when reserved, 0 when
@@ -138,8 +158,14 @@ models:
         description: >
           The amenity set in force on this specific day, resolved as-of from
           the changelog rather than taken from the listing's current state.
-        tests:
-          - not_null
+        data_tests:
+          - not_null:
+              description: >
+                Asserts the as-of amenity join is total: every listing-day
+                resolves to exactly one amenity version. A NULL here is the
+                gap case -- a day falling between two validity windows --
+                which is the failure assert_amenity_versions_do_not_overlap is
+                designed to prevent upstream.
       - name: amenity_count
         description: Number of amenities in force on this day.
       - name: amenity_version_number

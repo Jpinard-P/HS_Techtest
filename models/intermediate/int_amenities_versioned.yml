@@ -14,20 +14,35 @@ models:
     columns:
       - name: listing_id
         description: Foreign key to stg_listings.listing_id. Note that listing 276450 appears here but not in LISTINGS.
-        tests:
-          - not_null
+        data_tests:
+          - not_null:
+              description: >
+                Partition key of the window that builds each listing's version
+                sequence.
       - name: version_number
         description: 1-based sequence of this version within the listing, ordered by change_at.
       - name: amenities
         description: The amenity set in force for this version.
-        tests:
-          - not_null
+        data_tests:
+          - not_null:
+              description: >
+                The payload of the version. A NULL set would make every
+                point-in-time amenity flag NULL for the days it covers rather
+                than false, and a NULL flag drops out of a WHERE clause
+                instead of counting as 'does not have it'.
       - name: amenity_count
         description: Number of amenities in this version. Convenience for measuring amenity churn.
       - name: valid_from
         description: Inclusive start of this version's validity. -infinity for the first version.
-        tests:
-          - not_null
+        data_tests:
+          - not_null:
+              description: >
+                The lower bound of the as-of join predicate in listing_days.
+                The first version is backdated to -infinity precisely so this
+                is never NULL; a NULL would match no day, and those days would
+                lose their amenities silently.
+                assert_amenity_versions_do_not_overlap checks the ranges fit
+                together; this checks they exist at all.
       - name: valid_to
         description: Exclusive end of this version's validity. infinity for the current version.
       - name: changed_at

@@ -1,0 +1,186 @@
+version: 2
+
+# Descriptions for the singular data tests in this folder.
+#
+# dbt surfaces a `description` on a singular test in the docs site and in
+# manifest.json; it does not read the SQL comment above the query. The reasoning
+# for each test lived only in those comments, which meant it was invisible to
+# anyone reading the docs rather than the repo. It is restated here, and the
+# comments stay where they are for whoever is editing the SQL.
+#
+# What each description is for: not what the query does -- that is readable from
+# the SQL -- but what breaks if the test fails, which is the part that is not.
+
+data_tests:
+
+  # -- Grain -----------------------------------------------------------------
+  # A grain claim in a model description is only a claim until something checks
+  # it. These three do.
+
+  - name: assert_stg_calendar_grain_is_unique
+    description: >
+      Asserts stg_calendar's documented grain: one row per listing per calendar
+      day. The staging model reaches that grain with a DISTINCT, added because
+      the source contained three identical rows for one listing/date. That
+      DISTINCT collapses exact duplicates silently, so this test is what
+      separates "no duplicates arrived" from "duplicates arrived and were
+      swallowed": a *non-identical* duplicate survives the DISTINCT and fails
+      here rather than fanning out every downstream join.
+
+  - name: assert_stg_amenities_changelog_grain_is_unique
+    description: >
+      Asserts stg_amenities_changelog's documented grain: one row per listing
+      per change_at. The amenity SCD2 in int_amenities_versioned orders versions
+      by change_at and takes the next one's start as this one's end, so two
+      changes sharing a timestamp would produce a zero-length or ambiguous
+      validity window and corrupt every point-in-time amenity lookup built on
+      it.
+
+  - name: assert_listing_days_grain_is_unique
+    description: >
+      Asserts the mart's grain: one row per listing per day. Every join in
+      listing_days is a potential fan-out, the amenity as-of join especially --
+      an overlapping validity range duplicates a day, and because revenue is a
+      per-row column, a duplicated day is double-counted revenue. This is the
+      last line of defence for that; assert_amenity_versions_do_not_overlap is
+      the first.
+
+  # -- Source contract -------------------------------------------------------
+
+  - name: assert_source_columns_match_contract
+    description: >
+      Asserts that each CSV's column order still matches the order given in the
+      source documentation. This is load-bearing rather than pedantic: the
+      read_csv calls in _staging__sources.yml pin types positionally
+      (types = [...]), and DuckDB's name-keyed alternative (columns = {...}) is
+      not safer, because it also assigns by position and silently *renames* a
+      column whose name does not match instead of raising. Without this test a
+      reordered extract whose swapped columns happen to share a type
+      (MINIMUM_NIGHTS / MAXIMUM_NIGHTS, say) would be mis-typed with no error
+      anywhere. Reads the files directly via sniff_csv, so it tests the files
+      rather than the already-typed staging models.
+
+  - name: assert_calendar_coverage_is_complete
+    description: >
+      Asserts that every listing in the calendar spans the same unbroken date
+      range (2021-07-12 to 2022-07-11), one row per day, with no gaps or
+      duplicates. Occupancy and revenue rates divide by a day count, so a
+      listing missing days would not fail -- it would quietly report a rate
+      against a shorter denominator and look like a real business result. The
+      bounds are derived from the data rather than hardcoded, so a legitimately
+      re-loaded calendar moves them without editing this test.
+
+  - name: assert_calendar_availability_matches_reservation
+    description: >
+      Asserts that is_available and reservation_id agree on every row. The
+      source documentation defines them independently -- AVAILABLE is 't'/'f',
+      and RESERVATION_ID "if NULL, there was no reservation on that date" --
+      so nothing in the contract guarantees they agree, but in this extract they
+      agree on all 18,250 rows. Downstream occupancy logic uses whichever is
+      convenient; this test is what makes that choice safe rather than lucky.
+
+  # -- Reservations ----------------------------------------------------------
+
+  - name: assert_reservation_nights_are_contiguous
+    description: >
+      Asserts that the nights of one reservation on one listing form an unbroken
+      run. A gap means either a reused reservation id or a missing calendar day,
+      and both distort length-of-stay and occupancy: the stay would be measured
+      across its span rather than its nights.
+
+  - name: assert_reservation_covers_one_listing
+    description: >
+      Asserts that a reservation id belongs to a single listing, which is what
+      "Unique ID for that DATE's reservation" implies, and which the data
+      otherwise bears out -- ids are allocated in per-listing blocks (listing
+      3781 holds 1-41, 5506 holds 42-89, and so on).
+
+      Configured to warn rather than error, in the test SQL. One known
+      exception: reservation 836 appears on listings 753446 and 801680 on
+      2021-07-12, the calendar's first day, and is the only reservation on
+      753446. That has the shape of an off-by-one where the id blocks meet the
+      loaded calendar boundary, but it cannot be resolved from the data alone,
+      so it is surfaced rather than silently repaired. The warning is pinned in
+      .github/scripts/check_warnings.py, so it cannot quietly become wallpaper.
+
+  # -- Amenity SCD2 ----------------------------------------------------------
+
+  - name: assert_amenity_versions_do_not_overlap
+    description: >
+      Asserts that each listing's amenity validity ranges are disjoint and
+      contiguous -- each version ends after it starts, and hands over to the
+      next exactly. The as-of join in listing_days is only single-valued if that
+      holds. An overlap makes every day in it appear twice in the mart and count
+      its revenue twice; a gap makes days in it lose their amenities and drop
+      out of amenity segmentation entirely, which is the more dangerous failure
+      because the row still exists and the total still looks plausible.
+
+  # -- Mart invariants -------------------------------------------------------
+
+  - name: assert_listing_days_preserve_calendar
+    description: >
+      Asserts that the mart neither gains nor loses listing-days against the
+      calendar it is built from, and that total revenue is unchanged. Both legs
+      are needed: a row count alone would not catch a fan-out that also dropped
+      rows, since the two can cancel. The revenue leg is the commercially
+      meaningful one -- it asserts that the mart's earned revenue still equals
+      the sum of prices on reserved nights in staging, so no join has quietly
+      added or removed money.
+
+  - name: assert_revenue_only_on_reserved_nights
+    description: >
+      Asserts that revenue equals nightly_price on reserved nights and is
+      exactly zero otherwise, and that is_available and is_reserved remain
+      inverses. revenue and nightly_price are separate columns precisely so that
+      SUM(revenue) is always correct without a WHERE clause; that guarantee is
+      the reason the mart is safe to hand to an analyst, and this test is the
+      only thing enforcing it.
+
+  - name: assert_max_bookable_nights_respects_limits
+    description: >
+      Asserts that max_bookable_nights never exceeds either constraint it is
+      built from -- the length of the vacancy, or the owner's stated maximum --
+      and is never below 1. This is the column that answers "longest possible
+      stay" (problem 3), so an overstatement is a wrong answer to a published
+      question rather than an internal inconsistency.
+
+  # -- Value plausibility ----------------------------------------------------
+
+  - name: assert_prices_and_nights_are_plausible
+    description: >
+      Range checks on the numeric columns feeding revenue and availability:
+      non-positive prices, review scores outside 0-5, accommodates below 1, and
+      a minimum stay longer than the maximum. None of these are values the
+      business can act on -- each is a parsing or source error, and each should
+      stop the build rather than land in a metric where it is indistinguishable
+      from a real number. Errors rather than warns for that reason.
+
+  - name: assert_listings_review_fields_agree
+    description: >
+      Asserts that number_of_reviews, first_review_date and last_review_date
+      tell the same story: a count with no dates, dates with no count, or a
+      first review postdating the last are all contradictions. Three independent
+      columns describing one fact can drift apart in the source. Two listings
+      here have zero reviews and NULL dates, which is the *consistent* case and
+      passes; this catches the inconsistent ones.
+
+  # -- Regression guard ------------------------------------------------------
+
+  - name: assert_published_answers_hold
+    description: >
+      Golden-number regression guard pinning the three published business
+      answers: July 2022 revenue share without air conditioning (21.2%), Back
+      Bay's average price increase ($44), and the longest bookable stay for
+      listing 1303261 with a lockbox and first aid kit (159 nights).
+
+      These are deliberately not invariants of the model -- they are facts about
+      this extract, and they are re-derived here independently rather than read
+      from analyses/, so that the test and the analysis cannot drift into
+      agreement by sharing a bug. The point is blast radius: if a change to a
+      join, a cast, or an amenity flag moves one of these numbers, the build
+      fails naming the number that moved, instead of the drift surfacing in a
+      code review months later.
+
+      If the source data is legitimately refreshed, these expected values are
+      meant to be updated deliberately, in the same commit that refreshes the
+      data.

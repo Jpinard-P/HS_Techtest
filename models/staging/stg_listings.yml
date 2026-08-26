@@ -15,9 +15,20 @@ models:
       - name: listing_id
         data_type: INTEGER
         description: Unique ID for this listing. Primary Key. Rows with a NULL raw ID are excluded upstream of this model.
-        tests:
-          - unique
-          - not_null
+        data_tests:
+          - unique:
+              description: >
+                listing_id is the join key every downstream model uses to
+                attach listing attributes. A duplicate here fans out silently:
+                the mart would gain listing-days and double-count their
+                revenue, which assert_listing_days_preserve_calendar would
+                catch only after the fact.
+          - not_null:
+              description: >
+                Rows with a NULL raw ID are dropped in this model because they
+                are unusable as a join key. This asserts that drop was
+                complete, so the exclusion stays a deliberate filter rather
+                than something later logic has to defend against.
 
       - name: listing_name
         data_type: VARCHAR
@@ -26,8 +37,12 @@ models:
       - name: host_id
         data_type: INTEGER
         description: Unique ID for the Host who owns this property.
-        tests:
-          - not_null
+        data_tests:
+          - not_null:
+              description: >
+                host_id is the only link from a listing to its host, so a NULL
+                would make the listing invisible to any host-level grouping
+                while still counting in listing-level totals.
 
       - name: host_name
         data_type: VARCHAR
@@ -60,8 +75,12 @@ models:
       - name: accommodates
         data_type: INTEGER
         description: Number of guests this room can accommodate.
-        tests:
-          - not_null
+        data_tests:
+          - not_null:
+              description: >
+                Capacity is a segmentation dimension. A NULL would form its
+                own silent bucket in any group-by rather than raising, so it
+                is rejected at staging.
 
       - name: bathrooms_text
         data_type: VARCHAR
@@ -90,8 +109,13 @@ models:
       - name: number_of_reviews
         data_type: INTEGER
         description: The number of reviews this listing has ever received.
-        tests:
-          - not_null
+        data_tests:
+          - not_null:
+              description: >
+                assert_listings_review_fields_agree compares this count
+                against first_review_date and last_review_date; a NULL count
+                cannot be compared and would slip through that test's
+                contradiction checks entirely.
 
       - name: first_review_date
         data_type: DATE

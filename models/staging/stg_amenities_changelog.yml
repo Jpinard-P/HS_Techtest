@@ -10,11 +10,18 @@ models:
       - name: listing_id
         data_type: INTEGER
         description: Unique ID for the listing to which this row applies. Part of the Primary Key, and a foreign key to stg_listings.listing_id.
-        tests:
-          - not_null
-          # Warn, not error: listing 276450 has changelog rows but no row in
-          # LISTINGS. See docs/source_type_contract.md.
+        data_tests:
+          - not_null:
+              description: >
+                Part of the documented grain, and the partition key for the
+                SCD2 in int_amenities_versioned. A NULL would put an amenity
+                change in no listing's version sequence.
           - relationships:
+              description: >
+                The documented foreign key to stg_listings. Warns rather than
+                errors for the same reason as the equivalent test on
+                stg_calendar: listing 276450 has changelog rows but no row in
+                LISTINGS. Pinned in .github/scripts/check_warnings.py.
               arguments:
                 to: ref('stg_listings')
                 field: listing_id
@@ -26,8 +33,13 @@ models:
         description: >
           When the amenities list changed. Part of the Primary Key. Documented
           as DATETIME, which DuckDB stores and reports as TIMESTAMP.
-        tests:
-          - not_null
+        data_tests:
+          - not_null:
+              description: >
+                Part of the documented grain, and the ordering key the SCD2
+                uses to turn changes into validity windows. A NULL has no
+                position in that sequence, so the version it belongs to would
+                get an undefined start.
 
       - name: amenities
         data_type: VARCHAR[]

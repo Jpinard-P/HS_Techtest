@@ -14,15 +14,26 @@ models:
     columns:
       - name: listing_id
         description: Unique ID for this listing. Primary key.
-        tests:
-          - unique
-          - not_null
+        data_tests:
+          - unique:
+              description: >
+                The mart's primary key, and the grain analysts join to.
+                Enforced here as well as in staging because the mart is the
+                published contract: a fan-out introduced between the two
+                layers would otherwise surface only as inflated listing
+                counts.
+          - not_null:
+              description: >
+                The mart's primary key must be addressable on every row.
       - name: listing_name
         description: Display name of listing.
       - name: host_id
         description: Unique ID for the Host who owns this property.
-        tests:
-          - not_null
+        data_tests:
+          - not_null:
+              description: >
+                Host-level rollups group on this column; a NULL would silently
+                form an unattributed bucket.
       - name: host_name
         description: Display name of Host.
       - name: host_since
