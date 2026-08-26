@@ -68,7 +68,11 @@ models:
 
       - name: calendar_price
         data_type: DECIMAL(10,2)
-        description: The USD price to rent this property on calendar_date. Cast from the documented VARCHAR. Renamed from PRICE to avoid colliding with stg_listings' listing-level price.
+        description: >
+          The price to rent this property on calendar_date, denominated in
+          calendar_price_currency. Parsed from the documented VARCHAR by the
+          parse_price macros. Renamed from PRICE to avoid colliding with
+          stg_listings' listing-level price.
 
       - name: minimum_nights
         data_type: INTEGER
@@ -77,3 +81,18 @@ models:
       - name: maximum_nights
         data_type: INTEGER
         description: The maximum number of nights that may be booked consecutively for this property.
+
+      - name: calendar_price_currency
+        data_type: VARCHAR
+        description: >
+          ISO 4217 currency of calendar_price. 'USD' throughout the current
+          extract: the raw values are unmarked, and the documentation fixes
+          unmarked prices as USD. A marked price resolves through the
+          currency_symbols seed.
+        data_tests:
+          - not_null:
+              description: >
+                NULL is the unknown-symbol case -- a currency symbol the
+                currency_symbols seed does not map. Revenue in the mart is
+                priced from this table, so an unresolved currency must stop
+                the build here rather than surface as a mixed-unit total.

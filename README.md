@@ -20,12 +20,15 @@ models/
 └── marts/                      tables · schema: main
     ├── listing_days.sql/.yml           ← the day/listing mart
     └── listings.sql/.yml
+
+seeds/currency_symbols.csv/.yml         currency symbol → ISO code lookup
+macros/parse_price.sql                  price text → amount + currency symbol
 ```
 
 Verify with:
 
 ```bash
-dbt build      # 50 nodes, 0 errors, 1 intentional warning (below)
+dbt build      # 57 nodes, 0 errors, 1 intentional warning (below)
 dbt compile    # analyses are NOT compiled by `build` -- a broken one ships green
 ```
 
@@ -206,7 +209,36 @@ The mart uses `list_contains(amenities, 'Air conditioning')`. The full
 `amenities` array stays on every row so any amenity can be tested the same way,
 without waiting for a new flag column.
 
-### 7. Gaps-and-islands is solved once, in the model
+### 7. Prices carry their currency, parsed rather than assumed
+
+The documentation says every price is USD, and today every raw price is
+either dollar-marked (`"$280.00"` in `LISTINGS`) or unmarked (`CALENDAR`).
+The tempting transformation is `replace(price, '$', '')` — and it has a
+specific failure mode: the day a `€` appears, the strict cast breaks the
+build with a conversion error that names a symptom, not the problem.
+
+Instead, the `parse_price` macros split every price into the two facts it
+carries. The amount is cast strictly, exactly as before. The leading symbol
+is matched with `\p{Sc}` — the Unicode *currency symbol* class, so any
+currency symbol is captured, not just the ones anticipated — and resolved to
+an ISO code against the `currency_symbols` seed. The failure modes are now
+graded rather than uniform:
+
+| Input | Behavior |
+| --- | --- |
+| `$280.00`, bare `125` | `USD` — marked, or the documented default |
+| `€1,234.56` | `EUR` — parses today, no code change |
+| `₿99.00` (symbol not in the seed) | currency is NULL → `not_null` fails **naming the rows**; the fix is one row in `seeds/currency_symbols.csv` |
+| `N/A` (not a price at all) | strict cast still fails the build loudly |
+
+`price_currency` rides through to both marts, and
+`assert_prices_share_one_currency` is the tripwire on top: the first
+non-USD price fails the build, because every `SUM(revenue)` and price delta
+in the reporting layer is only meaningful in one currency — the choice to
+filter, convert, or segment must be made by a person, not defaulted to a
+mixed-unit total.
+
+### 8. Gaps-and-islands is solved once, in the model
 
 Problem 3 needs the longest unbroken vacancy, capped by the owner's maximum
 stay. That is a windowed gaps-and-islands query — the kind that gets rewritten
@@ -287,7 +319,7 @@ slice. That is also the design's ceiling. In order, the levers are:
 
 ## Testing
 
-50 nodes, 42 tests — 41 passing, 1 deliberate warning.
+57 nodes, 48 tests — 47 passing, 1 deliberate warning.
 
 The suite deliberately excludes tests that cannot fail. A `not_null` on
 `has_listing_record` (`x is not null` never returns NULL), on `valid_to`
@@ -353,7 +385,7 @@ exercising once a `dev.duckdb` exists.
 | Step | Catches |
 | --- | --- |
 | `dbt parse --no-partial-parse` | Deprecations and YAML errors that a warm partial parse hides |
-| `dbt build` | Model failures and all 42 tests, including the golden-answer guard |
+| `dbt build` | Model failures and all 48 tests, including the golden-answer guard |
 | `check_warnings.py` | A *new* data-quality warning appearing |
 | `dbt compile` | Broken analyses — **`build` does not compile them** |
 | `dbt docs generate` | A docs site that no longer builds |
@@ -404,7 +436,7 @@ projects](https://docs.getdbt.com/best-practices/how-we-structure/1-guide-overvi
 
 | Convention | Status |
 | --- | --- |
-| Staging 1:1 with sources, no joins or aggregations | ✅ |
+| Staging 1:1 with sources, no joins or aggregations | ✅ the one join is to the currency_symbols seed — a project-owned lookup, not a second source |
 | Staging materialized as views | ✅ |
 | Staging named `stg_[source]__[entity]s` | ⚠️ `stg_listings`, not `stg_raw__listings` — with a single source, the `__[source]` infix disambiguates nothing |
 | Sources in `_staging__sources.yml` | ✅ |

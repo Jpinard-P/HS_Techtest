@@ -112,7 +112,8 @@ documentation makes:
 The raw layer matches the documentation; the staging layer does not, and
 should not. `stg_*` casts the documented-VARCHAR columns that hold numbers,
 dates, and booleans into usable types — `BEDROOMS` to `INTEGER`, `PRICE` to
-`DECIMAL(10,2)` (stripping the `$`), the review dates to `DATE`,
+`DECIMAL(10,2)` (splitting off the currency marking — see the `parse_price`
+macros and the `currency_symbols` seed), the review dates to `DATE`,
 `REVIEW_SCORES_RATING` to `DECIMAL(3,2)`, and `AVAILABLE`'s `'t'`/`'f'` to a
 real `BOOLEAN`. `CALENDAR.DATE` is narrowed from `DATETIME` to `DATE`; every
 value is midnight and the column is half of a daily grain.

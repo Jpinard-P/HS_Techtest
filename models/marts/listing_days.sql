@@ -160,6 +160,11 @@ joined as (
         -- rather than left to a WHERE clause the analyst has to remember.
         calendar.calendar_price as nightly_price,
         case when calendar.is_available then 0 else calendar.calendar_price end as revenue,
+        -- Both of the above are denominated in this. One currency per extract
+        -- today; assert_prices_share_one_currency fails the build the day a
+        -- second one appears, because summing across currencies is not a
+        -- number.
+        calendar.calendar_price_currency as price_currency,
 
         calendar.minimum_nights,
         calendar.maximum_nights,

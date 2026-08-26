@@ -79,8 +79,11 @@ renamed as (
         cast("BEDROOMS" as integer)                          as bedrooms,
         "BEDS"                                               as beds,
         cast("AMENITIES" as json)::varchar[]                 as amenities,
-        -- PRICE carries a currency symbol, e.g. "$125.00".
-        cast(replace("PRICE", '$', '') as decimal(10, 2))    as listing_price,
+        -- PRICE arrives as text with a leading currency symbol ("$280.00").
+        -- parse_price splits it into the amount (strict cast) and the
+        -- symbol, which resolves to an ISO code in the final CTE below.
+        {{ price_amount('"PRICE"') }}                        as listing_price,
+        {{ price_currency_symbol('"PRICE"') }}               as listing_price_currency_symbol,
         "NUMBER_OF_REVIEWS"                                  as number_of_reviews,
         cast("FIRST_REVIEW" as date)                         as first_review_date,
         cast("LAST_REVIEW" as date)                          as last_review_date,
@@ -88,6 +91,33 @@ renamed as (
 
     from identified
 
+),
+
+currencies as (
+
+    select currency_symbol, currency_code from {{ ref('currency_symbols') }}
+
+),
+
+final as (
+
+    select
+        renamed.* exclude (listing_price_currency_symbol),
+
+        -- The documentation says prices are USD, so an unmarked price keeps
+        -- that default. A marked price resolves through the seed, and a
+        -- symbol the seed does not map resolves to NULL -- which the
+        -- not_null test on this column turns into a build failure naming the
+        -- rows, instead of a euro price quietly joining the dollar totals.
+        case
+            when renamed.listing_price_currency_symbol is null then 'USD'
+            else currencies.currency_code
+        end as listing_price_currency
+
+    from renamed
+    left join currencies
+        on currencies.currency_symbol = renamed.listing_price_currency_symbol
+
 )
 
-select * from renamed
+select * from final

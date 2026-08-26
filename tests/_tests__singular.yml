@@ -186,6 +186,17 @@ data_tests:
       here have zero reviews and NULL dates, which is the *consistent* case and
       passes; this catches the inconsistent ones.
 
+  - name: assert_prices_share_one_currency
+    description: >
+      Asserts that every row of the mart carries the same price_currency.
+      Every revenue total, price average, and price delta in the reporting
+      layer adds or compares amounts across rows, and that arithmetic is only
+      meaningful in a single currency. The staging layer deliberately admits
+      other currencies (parse_price plus the currency_symbols seed), so this
+      is the tripwire: the first non-USD price fails the build and forces a
+      decision -- filter, convert, or segment -- rather than letting mixed
+      units land in a metric that still looks like a number.
+
   # -- Regression guard ------------------------------------------------------
 
   - name: assert_published_answers_hold

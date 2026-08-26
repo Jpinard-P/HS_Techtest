@@ -64,6 +64,7 @@ final as (
         -- it being mistaken for a current or average price -- the daily price
         -- lives in listing_days.
         listings.listing_price as price_at_calendar_start,
+        listings.listing_price_currency as price_currency,
 
         listings.number_of_reviews,
         listings.first_review_date,

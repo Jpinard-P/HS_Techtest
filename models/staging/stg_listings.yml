@@ -106,9 +106,10 @@ models:
         data_type: DECIMAL(10,2)
         description: >
           The price of this listing as of the start of the date range in
-          CALENDAR, in USD. Cast from the documented VARCHAR, with the
-          source's currency symbol stripped. Renamed from PRICE to avoid
-          colliding with stg_calendar's per-night price.
+          CALENDAR, denominated in listing_price_currency. Parsed from the
+          documented VARCHAR by the parse_price macros: the leading currency
+          symbol is split off and the remainder cast strictly. Renamed from
+          PRICE to avoid colliding with stg_calendar's per-night price.
 
       - name: number_of_reviews
         data_type: INTEGER
@@ -132,3 +133,19 @@ models:
       - name: review_scores_rating
         data_type: DECIMAL(3,2)
         description: The average review score of this listing. Cast from the documented VARCHAR.
+
+      - name: listing_price_currency
+        data_type: VARCHAR
+        description: >
+          ISO 4217 currency of listing_price. 'USD' throughout the current
+          extract -- every raw price is dollar-marked, and the documentation
+          also fixes unmarked prices as USD. A marked price resolves through
+          the currency_symbols seed.
+        data_tests:
+          - not_null:
+              description: >
+                NULL is the unknown-symbol case: a currency symbol appeared
+                in PRICE that seeds/currency_symbols.csv does not map. That
+                must fail here, naming the rows, because every downstream
+                money column inherits this price -- the fix is one seed row,
+                or a source investigation, never a silent NULL.

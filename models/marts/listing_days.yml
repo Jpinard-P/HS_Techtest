@@ -139,6 +139,14 @@ models:
           What this night actually earned: nightly_price when reserved, 0 when
           available. Additive across any combination of days, listings, and
           months.
+      - name: price_currency
+        description: >
+          ISO 4217 currency that nightly_price and revenue are denominated
+          in. 'USD' on every row of the current extract, and
+          assert_prices_share_one_currency fails the build if a second
+          currency ever appears -- totals and averages over money columns are
+          only meaningful within one currency, so when that test fires,
+          currency becomes a mandatory filter or grouping key.
       - name: minimum_nights
         description: Minimum consecutive nights bookable, as of this day.
       - name: maximum_nights

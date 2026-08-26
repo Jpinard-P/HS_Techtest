@@ -1,0 +1,39 @@
+version: 2
+
+seeds:
+  - name: currency_symbols
+    description: >
+      Currency symbol to ISO 4217 code lookup, used by the staging models to
+      resolve the symbol parse_price extracts from a raw PRICE. Reference
+      data owned by this project, not source data: supporting a new currency
+      is one row here, not a code change.
+
+      Where a symbol is shared across currencies the mapping is a policy
+      choice: ¥ maps to JPY here, but a source operating in China would map
+      it to CNY. Revisit per source market before leaning on it.
+    config:
+      column_types:
+        currency_symbol: varchar
+        currency_code: varchar
+    columns:
+      - name: currency_symbol
+        description: The symbol exactly as it appears in front of the price text.
+        data_tests:
+          - unique:
+              description: >
+                The staging models left-join on this column. A duplicate
+                symbol would fan out every priced row it appears on, and the
+                grain tests downstream would fail after the money had already
+                doubled.
+          - not_null:
+              description: >
+                A NULL symbol can never match a parsed symbol, so the row
+                would be dead weight that looks like coverage.
+      - name: currency_code
+        description: ISO 4217 code the symbol resolves to.
+        data_tests:
+          - not_null:
+              description: >
+                A symbol mapped to NULL would pass the join and then fail the
+                staging not_null anyway -- but as a mystery about the source
+                data rather than a visibly broken seed row.
