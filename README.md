@@ -32,6 +32,28 @@ dbt compile    # analyses are NOT compiled by `build` -- a broken one ships gree
 Both run in CI on every push and pull request — see
 [Continuous integration](#continuous-integration).
 
+**Run everything from the repo root**, dbt and ad-hoc DuckDB sessions alike:
+
+```bash
+duckdb data/dev.duckdb
+```
+
+The staging and intermediate models are views over the CSVs, and the `read_csv`
+paths stored in those views are relative. DuckDB resolves them against the
+working directory of whichever process runs the query — not against the
+location of `dev.duckdb`, and not against wherever dbt ran when it built the
+view. Opening the database from anywhere else fails on the first query that
+touches a view:
+
+```
+IO Error: No files found that match the pattern "data/AMENITIES_CHANGELOG.csv"
+```
+
+If you need to work from another directory, `SET
+file_search_path='/path/to/repo'` in the session. The marts are tables, so they
+hold real data and query fine from anywhere; it is only the views that reach
+back to the CSVs.
+
 ---
 
 ## The three business problems
