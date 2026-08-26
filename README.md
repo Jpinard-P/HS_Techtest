@@ -8,7 +8,7 @@ occupancy, and point-in-time amenity analysis.
 
 ```
 models/
-├── staging/                    views · schema: main
+├── staging/                    views · schema: main_staging
 │   ├── _staging__sources.yml
 │   ├── stg_listings.sql/.yml
 │   ├── stg_calendar.sql/.yml
@@ -79,18 +79,24 @@ not the obvious one.
 
 In the raw extract, listing `276450` has 365 calendar days and 2 amenity
 changes but **no row in `LISTINGS`** — its ID is nulled at source. An inner
-join from calendar to listings drops it silently, and that single join choice
-moves the answer to problem 1:
+join from the calendar to the raw listings drops those 365 days silently, and
+that single join choice moves the answer to problem 1:
 
 | | July 2022 revenue without AC |
 | --- | --- |
-| Calendar left-joined (orphan kept) | **21.2%** ← matches the brief |
-| Inner join to listings (orphan dropped) | 22.1% |
+| Orphan kept | **21.2%** ← matches the brief |
+| Orphan dropped | 22.1% |
 
 So the fact is built from the calendar spine outwards, and `has_listing_record`
 marks any row whose listing has no descriptive record. Building on the spine is
-what makes an orphan *visible and recoverable* rather than absent — `276450`'s
-ID is recovered below, and the next orphan will surface the same way.
+what makes an orphan *visible and recoverable* rather than absent — and it is
+what made `276450` recoverable at all.
+
+Because that ID is recovered in staging (below), the built project has no
+orphan left: `has_listing_record` is true on every row, every calendar listing
+resolves in `stg_listings`, and the 22.1% is only reachable by excluding
+`276450` on purpose. The spine and the flag stay, because they are the
+mechanism that surfaces the *next* orphan the same way.
 
 #### Recovering `276450`'s ID
 
@@ -108,10 +114,13 @@ It is a deduction, so it is worth stating what it rests on:
 | Its amenity set is exactly equal, 28 of 28, to `276450`'s **latest** changelog version (`2021-02-01`). Only 2 of the 100 changelog rows match this set at all; the other belongs to `349347`, the sibling unit, which is already identified | all 49 identified listings have `LISTINGS.AMENITIES` equal to their own latest changelog version, so this row conforming to that pattern for `276450` is exactly what a genuine record looks like |
 | Host `814298` also owns `349347`, *"…South End 1BR 1BA #2"*, same neighborhood. This row is *"#3"* | the sibling unit |
 
-Nothing is invented: all 20 columns of that row are real source data, and only
-the ID is missing from it. Recovering it does not move a published answer —
-the listing is in **Roxbury**, not Back Bay, so problem 2 is untouched, and its
-amenities resolve through the changelog either way, so the 21.2% is untouched.
+Nothing is invented: the other 19 of the row's 20 columns are real source
+data — only the ID is missing. Recovering it moves no published answer: the
+listing is in **Roxbury**, not Back Bay, so the Back Bay $44 stands, and its
+amenities resolve through the changelog either way, so the 21.2% stands. One
+unpublished number does move, deliberately: with `276450` identified, the
+neighborhood cut in problem 2 no longer excludes it, so Roxbury averages 13
+listings (−$6.15) rather than 12 ($0.00).
 
 It remains an inference from the data rather than a source-system confirmation,
 which is why the evidence above is a test and not a comment.
@@ -207,9 +216,12 @@ slightly differently by each analyst who needs it.
 mart is `least(vacancy length, strictest maximum_nights in that vacancy)`, so
 problem 3 reduces to `MAX(max_bookable_nights) GROUP BY listing_id`.
 
-`maximum_nights` is a per-day column and genuinely varies within a listing
-here, so the binding constraint is the **minimum** across the run, not the
-first value seen.
+`maximum_nights` is a per-day column and varies across a listing's calendar
+(though within no single run of this extract), so the binding constraint is
+the **minimum** across the run, not the first value seen. `minimum_nights` is
+deliberately not part of the formula — problem 3 asks for availability windows
+and maximum limits only — see *What I'd do next* for what that leaves on the
+table.
 
 ---
 
@@ -353,10 +365,10 @@ analyses. A missing var once broke `02_neighborhood_price_increase` while the
 full 58-node suite stayed green; it surfaced only on a manual rebuild from an
 empty database. CI now runs both.
 
-**`check_warnings.py` pins the known warnings.** Three tests warn rather than
-error, because each reports a source-data problem this project deliberately
+**`check_warnings.py` pins the known warning.** One test warns rather than
+errors, because it reports a source-data problem this project deliberately
 surfaces instead of repairing. The risk with warnings is that they become
-wallpaper — a fourth one scrolls past unread. The script compares the warning
+wallpaper — a second one scrolls past unread. The script compares the warning
 set against a documented allowlist and fails the build on anything new, while
 also flagging a *disappeared* warning, which usually means a test quietly
 stopped testing anything.
@@ -364,8 +376,9 @@ stopped testing anything.
 It runs *directly* after `dbt build` because every dbt command overwrites
 `target/run_results.json`, and only the test-running ones record test results.
 With `dbt compile` or `dbt docs generate` in between, the script would read a
-results file containing no tests and pass on nothing — so it asserts the
-results came from a build rather than trusting the step order.
+results file in which every test reports "success" without having run, and
+pass on nothing — so it asserts the results came from a build rather than
+trusting the step order.
 
 There is deliberately **no CD half**: there is no production warehouse to
 deploy to, and a deploy job with nothing behind it is theatre. When there is
@@ -393,7 +406,7 @@ projects](https://docs.getdbt.com/best-practices/how-we-structure/1-guide-overvi
 | --- | --- |
 | Staging 1:1 with sources, no joins or aggregations | ✅ |
 | Staging materialized as views | ✅ |
-| Staging entities plural, `stg_` prefixed | ✅ |
+| Staging named `stg_[source]__[entity]s` | ⚠️ `stg_listings`, not `stg_raw__listings` — with a single source, the `__[source]` infix disambiguates nothing |
 | Sources in `_staging__sources.yml` | ✅ |
 | Intermediate named `int_[entity]s_[verb]s` | ✅ renamed |
 | Intermediate kept out of the production schema | ✅ own schema |
@@ -404,27 +417,29 @@ projects](https://docs.getdbt.com/best-practices/how-we-structure/1-guide-overvi
 | Folders as selectors rather than tags | ✅ |
 | YAML config per folder | ⚠️ deviates — see below |
 
-Three things moved during this review:
+Three conventions worth spelling out:
 
-- **Intermediate models were renamed to verb-final form.**
-  `int_reservations` → `int_calendar_days_collapsed_to_reservations`, and
-  `int_listing_availability_runs` →
-  `int_calendar_days_grouped_into_availability_runs`. Both now mirror the
-  guide's own `int_order_items_summed_to_orders` example. They are verbose, but
-  the name states the re-graining the model performs, which is the point.
+- **Intermediate models are named in verb-final form** —
+  `int_calendar_days_collapsed_to_reservations`,
+  `int_calendar_days_grouped_into_availability_runs` — mirroring the guide's
+  own `int_order_items_summed_to_orders` example. They are verbose, but the
+  name states the re-graining the model performs, which is the point.
 
-- **Intermediate models moved to a `main_intermediate` schema.** The guide's
-  default is ephemeral; its sanctioned alternative is views in a custom schema
-  with separate permissions. Ephemeral would have made them un-inspectable,
-  which matters here because the amenity SCD2 is the most intricate logic in
-  the project. A separate schema keeps them out of the schema analysts browse
-  while leaving them queryable.
+- **Staging and intermediate models live in their own schemas**
+  (`main_staging`, `main_intermediate`), so `main` — the schema analysts
+  browse — holds only the two marts. The guide's default for intermediate is
+  ephemeral; its sanctioned alternative is views in a custom schema with
+  separate permissions. Ephemeral would make these layers un-inspectable,
+  which matters because the amenity SCD2 is the most intricate logic in the
+  project; separate schemas keep them out of the analyst contract while
+  leaving every layer queryable, so a wrong number in a mart can be traced
+  one layer at a time.
 
-- **Marts dropped their `fct_`/`dim_` prefixes.** Version 2 of the guide names
-  marts for the entity forming the grain rather than by Kimball role, so
-  `fct_listing_day` → `listing_days` and `dim_listing` → `listings`. This is
-  the change most worth a second opinion: many teams still expect the
-  prefixes, and reverting is a rename, not a rework.
+- **Marts carry no `fct_`/`dim_` prefixes.** Version 2 of the guide names
+  marts for the entity forming the grain rather than by Kimball role — hence
+  `listing_days` and `listings` rather than `fct_listing_day` and
+  `dim_listing`. This is the choice most worth a second opinion: many teams
+  still expect the prefixes, and reverting is a rename, not a rework.
 
 ### Documented deviations
 
@@ -471,8 +486,14 @@ and bedroom counts all change at source with no history retained.
   in `stg_listings` and pinned by a test, but the evidence is circumstantial —
   four facts that all point one way, not a record from upstream. A one-line
   confirmation would turn the deduction into a fact.
-- **Make `listing_days` incremental** on `calendar_date` once the calendar
-  grows beyond a single load.
+- **Fold `minimum_nights` into bookability.** `max_bookable_nights` applies
+  problem 3's two constraints — the vacancy's length and the owner's maximum —
+  and deliberately not the minimum. 58 vacancies in this extract are shorter
+  than their own `minimum_nights` (listing `1167987`'s longest, 73 nights,
+  sits under a 91-night minimum), so a stakeholder reading the column as "a
+  stay this long is offered" needs `minimum_nights`, which the mart carries
+  per day. A `meets_minimum_stay` flag on the run would make that check
+  one column instead of two.
 - **Add an amenity bridge table** (`listing_day × amenity`) if amenity analysis
   broadens beyond a handful of flags — grouping by amenity is awkward against an
   array column.

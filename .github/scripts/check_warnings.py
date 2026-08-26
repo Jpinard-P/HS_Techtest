@@ -31,10 +31,11 @@ if not results_path.exists():
 
 results = json.loads(results_path.read_text())
 
-# Every dbt command rewrites run_results.json, and only the test-running ones
-# record test results. `dbt compile` leaves a file with 49 results and zero
-# tests in it, against which this check trivially "passes" -- so assert the
-# results came from a command that actually ran the tests, rather than assuming
+# Every dbt command rewrites run_results.json, but only `build` and `test`
+# actually run the tests. `dbt compile` writes a file in which every node --
+# tests included -- reports status "success" without having executed, so the
+# warn-set below would be empty and this check would trivially "pass". Assert
+# the results came from a command that ran the tests, rather than assuming
 # nothing ran between `dbt build` and this script.
 which = results.get("args", {}).get("which")
 if which not in {"build", "test"}:

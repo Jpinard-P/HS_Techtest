@@ -60,7 +60,7 @@ final as (
         listings.beds,
 
         -- The listing-level PRICE is the price at the start of the calendar
-        -- calendar only. It is kept for reference but deliberately named to stop
+        -- range only. It is kept for reference but deliberately named to stop
         -- it being mistaken for a current or average price -- the daily price
         -- lives in listing_days.
         listings.listing_price as price_at_calendar_start,
