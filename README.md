@@ -272,7 +272,7 @@ project should surface, not silently repair:
    blocks meet at the boundary.
 
 Full write-up, including the source-type contract and its two unreproducible
-types, is in [`docs/source_type_contract.md`](../docs/source_type_contract.md).
+types, is in [`docs/source_type_contract.md`](docs/source_type_contract.md).
 
 ---
 

@@ -20,15 +20,12 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DBT_PROFILES_DIR: ${{ github.workspace }}/dbt_project
+  DBT_PROFILES_DIR: ${{ github.workspace }}
 
 jobs:
   build:
     name: Build, test and compile
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: dbt_project
 
     steps:
       - uses: actions/checkout@v4
@@ -41,7 +38,7 @@ jobs:
           cache-dependency-path: requirements.txt
 
       - name: Install dbt
-        run: pip install -r ../requirements.txt
+        run: pip install -r requirements.txt
 
       - name: Check project parses cleanly
         # --no-partial-parse because some deprecations only surface on a cold parse
@@ -58,7 +55,7 @@ jobs:
         run: dbt compile
 
       - name: Check for new data-quality warnings
-        run: python ../.github/scripts/check_warnings.py
+        run: python .github/scripts/check_warnings.py
 
       - name: Generate documentation
         run: dbt docs generate
@@ -69,9 +66,9 @@ jobs:
         with:
           name: dbt-docs
           path: |
-            dbt_project/target/index.html
-            dbt_project/target/manifest.json
-            dbt_project/target/catalog.json
+            target/index.html
+            target/manifest.json
+            target/catalog.json
           retention-days: 14
 
       - name: Upload run results on failure
@@ -79,5 +76,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dbt-run-results
-          path: dbt_project/target/run_results.json
+          path: target/run_results.json
           retention-days: 14

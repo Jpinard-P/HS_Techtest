@@ -29,7 +29,7 @@ sources:
         meta:
           external_location: >
             read_csv(
-              '../data/LISTINGS.csv',
+              'data/LISTINGS.csv',
               header = true,
               types = [
                 'INTEGER', 'VARCHAR', 'INTEGER', 'VARCHAR', 'DATETIME',
@@ -110,7 +110,7 @@ sources:
           # at read time instead of being repaired downstream.
           external_location: >
             read_csv(
-              '../data/CALENDAR.csv',
+              'data/CALENDAR.csv',
               header = true,
               nullstr = ['NULL', ''],
               types = [
@@ -146,7 +146,7 @@ sources:
         meta:
           external_location: >
             read_csv(
-              '../data/AMENITIES_CHANGELOG.csv',
+              'data/AMENITIES_CHANGELOG.csv',
               header = true,
               types = ['INTEGER', 'DATETIME', 'VARCHAR']
             )
