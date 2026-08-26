@@ -64,15 +64,41 @@ documentation makes:
   identical in every column, so `stg_calendar` collapses them with `DISTINCT`
   and a singular test guards the grain from here on.
 
-- **`CALENDAR` and `AMENITIES_CHANGELOG` reference a listing that does not
-  exist.** Listing `276450` has 365 calendar rows and 2 changelog rows, but no
-  row in `LISTINGS`. The evidence says it is the listing whose ID was nulled:
-  `LISTINGS` holds 49 usable IDs and the other two tables cover 50 listings,
-  and the nulled row *19th Century Luxury | South End | 1BR 1BA #3* is priced
-  at `$280.00`, which is exactly `276450`'s calendar price on the first day of
-  the loaded calendar. Recovering the ID is a data fix, not a modelling decision, so
-  the two `relationships` tests are set to `severity: warn` and the orphan is
-  left visible rather than silently repaired.
+- **`CALENDAR` and `AMENITIES_CHANGELOG` referenced a listing that did not
+  exist — now resolved.** Listing `276450` had 365 calendar rows and 2 changelog
+  rows, but no row in `LISTINGS`. It is the listing whose ID was nulled, and the
+  ID is now restored in `stg_listings` rather than in the CSV, so the extract
+  stays byte-identical and the inference stays reviewable and revertible.
+
+  Four independent facts identify the row, and
+  `assert_recovered_listing_matches_its_evidence` re-checks them on every build:
+
+  1. **The arithmetic closes.** `CALENDAR` and `AMENITIES_CHANGELOG` each cover
+     50 listings; `LISTINGS` identifies 49 and carries two NULL-ID rows, one of
+     which is the synthetic `TESTING LISTING` (`HOST_ID -99999`,
+     `ACCOMMODATES 99`). That leaves exactly one real unidentified row and
+     exactly one unclaimed ID.
+  2. **Price.** The row is priced `$280.00` — unique across all 51 raw rows —
+     which is exactly `276450`'s calendar price on the first day of the loaded
+     calendar, and `PRICE` is documented as the price "as of the start of the
+     date range in `CALENDAR`".
+  3. **Amenities.** Its amenity set is exactly equal (28 of 28) to `276450`'s
+     *latest* changelog version, `2021-02-01`. That is the pattern every
+     identified listing follows — all 49 have `LISTINGS.AMENITIES` equal to
+     their own latest changelog version — so the recovered row behaves exactly
+     as a genuine record should. Only two of the 100 changelog rows match this
+     set at all, and the other belongs to `349347`, the sibling unit, which is
+     already identified. (Compare the sets, not the raw strings: the two files
+     format the same JSON array differently, so a string comparison reports no
+     matches anywhere.)
+  4. **Household.** Host `814298` also owns `349347`, *"…South End 1BR 1BA #2"*,
+     in the same neighborhood. The recovered row is *"#3"* — the sibling unit.
+
+  With no orphan left, the two `relationships` tests were promoted from
+  `severity: warn` to erroring. A new orphan now means the extract has broken in
+  a way nobody has looked at, rather than a known exception being re-reported.
+  This remains an inference from the data, not a source-system confirmation;
+  that confirmation is still worth obtaining.
 
 - **One reservation id spans two listings.** Reservation `836` appears on both
   `753446` and `801680` on `2021-07-12`, the first day of the loaded calendar,

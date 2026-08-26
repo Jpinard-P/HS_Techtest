@@ -25,7 +25,7 @@ models/
 Verify with:
 
 ```bash
-dbt build      # 49 nodes, 0 errors, 3 intentional warnings (below)
+dbt build      # 50 nodes, 0 errors, 1 intentional warning (below)
 dbt compile    # analyses are NOT compiled by `build` -- a broken one ships green
 ```
 
@@ -77,32 +77,54 @@ not the obvious one.
 
 ### 1. `listing_days` is built on the calendar, not the listing
 
-Listing `276450` has 365 calendar days and 2 amenity changes but **no row in
-`LISTINGS`** — its ID was nulled at source. The evidence that it is the
-corrupted row is strong: `LISTINGS` holds 49 usable IDs while the other two
-tables cover 50 listings, and the nulled row *"19th Century Luxury | South End
-| 1BR 1BA #3"* is priced `$280.00`, exactly `276450`'s calendar price on the
-calendar's first day.
-
-An inner join from calendar to listings would have dropped it silently. That
-single join choice moves the answer to problem 1:
+Listing `276450` had 365 calendar days and 2 amenity changes but **no row in
+`LISTINGS`** — its ID was nulled at source. An inner join from calendar to
+listings would have dropped it silently, and that single join choice moves the
+answer to problem 1:
 
 | | July 2022 revenue without AC |
 | --- | --- |
 | Calendar left-joined (orphan kept) | **21.2%** ← matches the brief |
 | Inner join to listings (orphan dropped) | 22.1% |
 
-So the fact is built from the calendar spine outwards, `has_listing_record`
-marks the orphan, and its descriptive columns are NULL. Excluding it becomes a
-deliberate `WHERE` clause — which problem 2 uses, because a neighborhood cut
-genuinely cannot place a listing with no neighborhood.
+So the fact is built from the calendar spine outwards, and `has_listing_record`
+marks any row whose listing has no descriptive record. That column now reads
+true everywhere — see below — but the spine choice is what made the orphan
+*recoverable* rather than invisible, and it is what will keep the next one
+visible.
+
+#### Recovering `276450`'s ID
+
+The ID is restored in `stg_listings`, not in `data/LISTINGS.csv`. The extract
+stays byte-identical, the inference lives in code that can be reviewed and
+reverted, and it is re-checked on every build by
+`assert_recovered_listing_matches_its_evidence`.
+
+It is a deduction, so it is worth stating what it rests on:
+
+| Fact | Why it discriminates |
+| --- | --- |
+| `CALENDAR` and `AMENITIES_CHANGELOG` each cover 50 listings; `LISTINGS` identifies 49 and holds two NULL-ID rows, one of them the synthetic `TESTING LISTING` (`HOST_ID -99999`, `ACCOMMODATES 99`) | leaves exactly one real unidentified row and exactly one unclaimed ID |
+| The row is priced `$280.00` — unique across all 51 raw rows — and that is `276450`'s calendar price on the calendar's first day | `PRICE` is documented as the price "as of the start of the date range in `CALENDAR`", so these must agree |
+| Its amenity set is exactly equal, 28 of 28, to `276450`'s **latest** changelog version (`2021-02-01`). Only 2 of the 100 changelog rows match this set at all; the other belongs to `349347`, the sibling unit, which is already identified | all 49 identified listings have `LISTINGS.AMENITIES` equal to their own latest changelog version, so this row conforming to that pattern for `276450` is exactly what a genuine record looks like |
+| Host `814298` also owns `349347`, *"…South End 1BR 1BA #2"*, same neighborhood. This row is *"#3"* | the sibling unit |
+
+Nothing is invented: all 20 columns of that row are real, and only the ID was
+missing. The published answers are unaffected — the listing is in **Roxbury**,
+not Back Bay, so problem 2 does not move, and its amenities always resolved via
+the changelog, so the 21.2% does not move either. What changes is that the two
+`relationships` tests now **error** instead of warning, because the exception
+they existed to tolerate is gone.
+
+This is still an inference from the data rather than a source-system
+confirmation, and that confirmation is still worth having.
 
 ### 2. Amenities are type-2 versioned, even though nothing needs it yet
 
 Every one of the 100 amenity changes predates the loaded calendar — the last
 is 2021-07-06, the calendar opens 2021-07-12. Amenities are therefore *constant*
 across the entire reporting period, and `LISTINGS.AMENITIES` equals the latest
-changelog row for all 49 listings.
+changelog row for all 50 listings — a regularity the ID recovery above leans on.
 
 Which means a current-state join produces identical numbers today, at a
 fraction of the complexity. It was still the wrong choice. The moment one
@@ -256,7 +278,7 @@ slice. That is also the design's ceiling. In order, the levers are:
 
 ## Testing
 
-49 nodes, 41 tests — 38 passing, 3 deliberate warnings.
+50 nodes, 42 tests — 41 passing, 1 deliberate warning.
 
 There were 51. Ten were removed because they could not fail: a `not_null` on
 `has_listing_record` (`x is not null` never returns NULL), on `valid_to`
@@ -289,17 +311,23 @@ that the mart's promises hold:
   positionally, which is only valid while the CSVs keep the documented column
   order. This asserts that order.
 
-### The three warnings are real findings, not noise
+### The remaining warning is a real finding, not noise
 
-They warn rather than error because each is a source data problem that this
-project should surface, not silently repair:
+It warns rather than errors because it is a source data problem this project
+should surface, not silently repair:
 
-1. **Orphaned listing** — `276450` referenced by calendar and changelog, absent
-   from `LISTINGS` (2 `relationships` tests).
-2. **Shared reservation id** — reservation `836` appears on two listings on
-   2021-07-12, the calendar's first day. Reservation ids are otherwise allocated
-   in contiguous per-listing blocks, so this looks like an off-by-one where two
-   blocks meet at the boundary.
+- **Shared reservation id** — reservation `836` appears on two listings on
+  2021-07-12, the calendar's first day. Reservation ids are otherwise allocated
+  in contiguous per-listing blocks, so this looks like an off-by-one where two
+  blocks meet at the boundary. Unlike the orphaned listing, it cannot be
+  resolved from the data: nothing says which of the two listings the
+  reservation belongs to.
+
+There were three. The other two were the `relationships` tests on the orphaned
+listing `276450`, and they are gone because the orphan is gone — its ID is
+recovered in `stg_listings` (below), not because the allowlist was widened.
+Those two tests now **error** rather than warn, since there is no longer a known
+exception for them to tolerate.
 
 Full write-up, including the source-type contract and its two unreproducible
 types, is in [`docs/source_type_contract.md`](docs/source_type_contract.md).
@@ -317,7 +345,7 @@ exercising once a `dev.duckdb` exists.
 | Step | Catches |
 | --- | --- |
 | `dbt parse --no-partial-parse` | Deprecations and YAML errors that a warm partial parse hides |
-| `dbt build` | Model failures and all 41 tests, including the golden-answer guard |
+| `dbt build` | Model failures and all 42 tests, including the golden-answer guard |
 | `check_warnings.py` | A *new* data-quality warning appearing |
 | `dbt compile` | Broken analyses — **`build` does not compile them** |
 | `dbt docs generate` | A docs site that no longer builds |
@@ -443,8 +471,10 @@ and bedroom counts all change at source with no history retained.
 
 ## What I'd do next
 
-- **Recover listing 276450's ID.** The evidence is strong but circumstantial;
-  it needs a source-system confirmation, not a guess in a model.
+- **Confirm listing 276450's ID with the source system.** The ID is recovered
+  in `stg_listings` and pinned by a test, but the evidence is circumstantial —
+  four facts that all point one way, not a record from upstream. A one-line
+  confirmation would turn the deduction into a fact.
 - **Make `listing_days` incremental** on `calendar_date` once the calendar
   grows beyond a single load.
 - **Add an amenity bridge table** (`listing_day × amenity`) if amenity analysis

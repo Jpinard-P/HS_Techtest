@@ -1,14 +1,55 @@
 {{ config(materialized='view') }}
 
--- Two raw rows have a NULL id (one "TESTING LISTING" with host_id=-99999 and
--- other clearly implausible values, one otherwise-normal-looking row). A NULL
--- primary key can't be joined to CALENDAR or AMENITIES_CHANGELOG, so these
--- rows are unusable downstream and are dropped here rather than passed on.
+-- Two raw rows arrive with a NULL id. They are not the same kind of problem,
+-- and they are not treated the same way.
+--
+-- The first is "TESTING LISTING": host_id -99999, accommodates 99, price
+-- $999.99. It is synthetic and corresponds to nothing in CALENDAR. It stays
+-- dropped.
+--
+-- The second is a real listing whose id was lost in the extract, and it is
+-- recoverable rather than guessable. CALENDAR and AMENITIES_CHANGELOG each
+-- describe 50 listings; LISTINGS identifies 49; exactly one id (276450) is
+-- referenced by both and identified by neither. Three independent facts point
+-- the remaining row at that id:
+--
+--   * its PRICE, $280.00, is unique across all 51 raw rows, and equals 276450's
+--     CALENDAR price on 2021-07-12 -- which is what PRICE is documented to
+--     mean, "the price of this listing as of the start of the date range in
+--     CALENDAR".
+--   * its AMENITIES set is exactly equal (28 of 28) to 276450's changelog
+--     version of 2021-02-01. Only two of the 100 changelog rows match it
+--     exactly, and the other belongs to listing 349347, which is already
+--     identified.
+--   * host 814298 also owns 349347, "...South End 1BR 1BA #2", in the same
+--     neighborhood. This row is "#3" -- the sibling unit.
+--
+-- The id is therefore restored here rather than in data/LISTINGS.csv, so the
+-- vendor extract stays byte-identical and the inference stays reviewable. The
+-- evidence above is re-checked on every build by
+-- assert_recovered_listing_matches_its_evidence; if a future extract changes
+-- this row, that test fails rather than this model mislabelling it.
 with source as (
 
-    select *
+    select
+        case
+            when "ID" is null
+             and "HOST_ID" = 814298
+             and "NAME" = '19th Century Luxury | South End | 1BR 1BA #3'
+            then 276450
+            else "ID"
+        end as "ID",
+        * exclude ("ID")
     from {{ source('raw', 'listings') }}
-    where "ID" is not null
+
+),
+
+identified as (
+
+    -- Anything still without an id cannot be joined to CALENDAR or
+    -- AMENITIES_CHANGELOG and is unusable downstream. Today that is exactly
+    -- the TESTING LISTING row.
+    select * from source where "ID" is not null
 
 ),
 
@@ -45,7 +86,7 @@ renamed as (
         cast("LAST_REVIEW" as date)                          as last_review_date,
         cast("REVIEW_SCORES_RATING" as decimal(3, 2))        as review_scores_rating
 
-    from source
+    from identified
 
 )
 

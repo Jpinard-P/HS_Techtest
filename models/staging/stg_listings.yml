@@ -14,7 +14,11 @@ models:
     columns:
       - name: listing_id
         data_type: INTEGER
-        description: Unique ID for this listing. Primary Key. Rows with a NULL raw ID are excluded upstream of this model.
+        description: >
+          Unique ID for this listing. Primary Key. Two raw rows arrive with a
+          NULL ID: one is recovered as 276450 by the id recovery documented in
+          stg_listings.sql, the other is a synthetic TESTING LISTING row and
+          stays excluded.
         data_tests:
           - unique:
               description: >

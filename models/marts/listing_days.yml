@@ -44,10 +44,13 @@ models:
                 time series built on this table.
       - name: has_listing_record
         description: >
-          False for listing 276450, which has calendar and amenity history but
-          no row in LISTINGS, leaving its descriptive columns NULL. Its 365
-          days are retained deliberately: excluding them changes the
-          amenity-revenue answer from 21.2% to 22.1%.
+          True for every row today. It was false for listing 276450, which had
+          calendar and amenity history but no row in LISTINGS until its ID was
+          recovered in stg_listings. The column is kept rather than dropped
+          because the mart is built on the calendar, not on LISTINGS, so a
+          future extract can orphan a listing again -- and those days must stay
+          in the mart when it does. Excluding 276450's 365 days would have
+          moved the amenity-revenue answer from 21.2% to 22.1%.
 
       - name: month_start_date
         description: First day of this row's month. The intended grouping key for monthly analysis.
