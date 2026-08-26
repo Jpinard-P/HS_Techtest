@@ -11,9 +11,9 @@ means the source data has broken in a new way, which should stop the build and
 be looked at -- not scroll past in a log. A warning that disappears is also
 reported, since it usually means a test stopped testing anything.
 
-This list was three until listing 276450's id was recovered in stg_listings,
-which resolved the two `relationships` warnings for real rather than by
-widening the allowlist. Entries are meant to leave this set that way.
+The allowlist is meant to shrink by fixing causes, not to grow by absorbing
+them: a warning belongs here only while the underlying source problem genuinely
+cannot be resolved from the data.
 """
 
 import json

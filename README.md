@@ -77,10 +77,10 @@ not the obvious one.
 
 ### 1. `listing_days` is built on the calendar, not the listing
 
-Listing `276450` had 365 calendar days and 2 amenity changes but **no row in
-`LISTINGS`** — its ID was nulled at source. An inner join from calendar to
-listings would have dropped it silently, and that single join choice moves the
-answer to problem 1:
+In the raw extract, listing `276450` has 365 calendar days and 2 amenity
+changes but **no row in `LISTINGS`** — its ID is nulled at source. An inner
+join from calendar to listings drops it silently, and that single join choice
+moves the answer to problem 1:
 
 | | July 2022 revenue without AC |
 | --- | --- |
@@ -88,10 +88,9 @@ answer to problem 1:
 | Inner join to listings (orphan dropped) | 22.1% |
 
 So the fact is built from the calendar spine outwards, and `has_listing_record`
-marks any row whose listing has no descriptive record. That column now reads
-true everywhere — see below — but the spine choice is what made the orphan
-*recoverable* rather than invisible, and it is what will keep the next one
-visible.
+marks any row whose listing has no descriptive record. Building on the spine is
+what makes an orphan *visible and recoverable* rather than absent — `276450`'s
+ID is recovered below, and the next orphan will surface the same way.
 
 #### Recovering `276450`'s ID
 
@@ -109,15 +108,13 @@ It is a deduction, so it is worth stating what it rests on:
 | Its amenity set is exactly equal, 28 of 28, to `276450`'s **latest** changelog version (`2021-02-01`). Only 2 of the 100 changelog rows match this set at all; the other belongs to `349347`, the sibling unit, which is already identified | all 49 identified listings have `LISTINGS.AMENITIES` equal to their own latest changelog version, so this row conforming to that pattern for `276450` is exactly what a genuine record looks like |
 | Host `814298` also owns `349347`, *"…South End 1BR 1BA #2"*, same neighborhood. This row is *"#3"* | the sibling unit |
 
-Nothing is invented: all 20 columns of that row are real, and only the ID was
-missing. The published answers are unaffected — the listing is in **Roxbury**,
-not Back Bay, so problem 2 does not move, and its amenities always resolved via
-the changelog, so the 21.2% does not move either. What changes is that the two
-`relationships` tests now **error** instead of warning, because the exception
-they existed to tolerate is gone.
+Nothing is invented: all 20 columns of that row are real source data, and only
+the ID is missing from it. Recovering it does not move a published answer —
+the listing is in **Roxbury**, not Back Bay, so problem 2 is untouched, and its
+amenities resolve through the changelog either way, so the 21.2% is untouched.
 
-This is still an inference from the data rather than a source-system
-confirmation, and that confirmation is still worth having.
+It remains an inference from the data rather than a source-system confirmation,
+which is why the evidence above is a test and not a comment.
 
 ### 2. Amenities are type-2 versioned, even though nothing needs it yet
 
@@ -280,12 +277,12 @@ slice. That is also the design's ceiling. In order, the levers are:
 
 50 nodes, 42 tests — 41 passing, 1 deliberate warning.
 
-There were 51. Ten were removed because they could not fail: a `not_null` on
+The suite deliberately excludes tests that cannot fail. A `not_null` on
 `has_listing_record` (`x is not null` never returns NULL), on `valid_to`
-(`coalesce` with a literal), on `row_number()` and `count(*)`, on a column the
-model already filters to non-null, and on columns whose only NULL path was
-already guarded by a `not_null` upstream. A test that cannot fail is not
-coverage — it is a line in a report that trains people to skim.
+(`coalesce` with a literal), on `row_number()` or `count(*)`, on a column the
+model already filters to non-null, or on a column whose only NULL path is
+already guarded upstream — none of these can ever go red. A test that cannot
+fail is not coverage; it is a line in a report that trains people to skim.
 
 Every test carries a `description`, so the reasoning is visible in the docs
 site and in `manifest.json` rather than only in a comment above the query.
@@ -323,11 +320,10 @@ should surface, not silently repair:
   resolved from the data: nothing says which of the two listings the
   reservation belongs to.
 
-There were three. The other two were the `relationships` tests on the orphaned
-listing `276450`, and they are gone because the orphan is gone — its ID is
-recovered in `stg_listings` (below), not because the allowlist was widened.
-Those two tests now **error** rather than warn, since there is no longer a known
-exception for them to tolerate.
+It is the only one. The two `relationships` tests on `stg_calendar` and
+`stg_amenities_changelog` **error** rather than warn: every listing they
+reference resolves in `stg_listings`, so a broken foreign key means the extract
+has changed in a way nobody has looked at, and should stop the build.
 
 Full write-up, including the source-type contract and its two unreproducible
 types, is in [`docs/source_type_contract.md`](docs/source_type_contract.md).
@@ -367,8 +363,8 @@ stopped testing anything.
 
 It runs *directly* after `dbt build` because every dbt command overwrites
 `target/run_results.json`, and only the test-running ones record test results.
-With `dbt compile` in between — where this step used to sit — the script read a
-results file containing no tests and passed on nothing. It now asserts the
+With `dbt compile` or `dbt docs generate` in between, the script would read a
+results file containing no tests and pass on nothing — so it asserts the
 results came from a build rather than trusting the step order.
 
 There is deliberately **no CD half**: there is no production warehouse to

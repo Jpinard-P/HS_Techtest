@@ -122,9 +122,8 @@ data_tests:
       753446. That has the shape of an off-by-one where the id blocks meet the
       loaded calendar boundary, but it cannot be resolved from the data alone,
       so it is surfaced rather than silently repaired. The warning is pinned in
-      .github/scripts/check_warnings.py -- now the only entry in that allowlist,
-      since the two relationships warnings were resolved by recovering listing
-      276450's ID rather than by tolerating them.
+      .github/scripts/check_warnings.py, the only entry in that allowlist, so it
+      cannot quietly become wallpaper.
 
   # -- Amenity SCD2 ----------------------------------------------------------
 
