@@ -1,0 +1,6 @@
+# The explorer's own dependencies, separate from requirements.txt so CI and
+# the dbt toolchain never install a web stack they don't use. duckdb is
+# pinned to the same engine version dbt-duckdb 1.11.0 bundles, so the app
+# reads dev.duckdb with the storage version that wrote it.
+streamlit==1.62.0
+duckdb==1.5.5

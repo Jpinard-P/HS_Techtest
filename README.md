@@ -76,6 +76,25 @@ not the obvious one.
 
 ---
 
+## Exploring the mart in a browser
+
+`app/explorer.py` is a small Streamlit app over `data/dev.duckdb`: a SQL
+editor on a **read-only** connection, preset queries (the three business
+problems plus revenue/occupancy cuts), the table list per schema, CSV
+download, and a point-and-click chart builder for any result.
+
+```bash
+pip install -r app/requirements.txt   # separate from the dbt requirements
+streamlit run app/explorer.py         # from the repo root, after dbt build
+```
+
+Connections are opened per query and read-only, so the app cannot write and
+only holds the database lock briefly — `dbt build` still works while the app
+is open. Its dependencies live in `app/requirements.txt` so CI and the dbt
+toolchain never install a web stack they don't use.
+
+---
+
 ## The decisions that matter
 
 ### 1. `listing_days` is built on the calendar, not the listing
