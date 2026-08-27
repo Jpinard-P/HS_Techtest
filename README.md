@@ -81,9 +81,11 @@ not the obvious one.
 ## Exploring the mart in a browser
 
 `app/explorer.py` is a small Streamlit app over `data/dev.duckdb`: a SQL
-editor on a **read-only** connection, preset queries (the three business
-problems plus revenue/occupancy cuts), the table list per schema, CSV
-download, and a point-and-click chart builder for any result.
+editor on a **read-only** connection with schema-aware autocomplete (it
+completes the live database's table and column names, not just keywords),
+preset queries (the three business problems plus revenue/occupancy cuts),
+the table list per schema, CSV download, and a point-and-click chart
+builder for any result.
 
 ```bash
 pip install -r app/requirements.txt   # separate from the dbt requirements

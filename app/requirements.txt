@@ -4,3 +4,4 @@
 # reads dev.duckdb with the storage version that wrote it.
 streamlit==1.62.0
 duckdb==1.5.5
+streamlit-code-editor==0.1.22
