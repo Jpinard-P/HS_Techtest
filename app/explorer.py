@@ -120,6 +120,16 @@ order by revenue_in_calendar desc
 
 CHART_TYPES = {"Bar": "bar", "Line": "line", "Area": "area", "Scatter": "circle"}
 
+# Per-preset chart defaults: sensible starting axes so each business problem
+# opens already charted the way it reads best. None means table-first -- the
+# preset's answer is a number to look up, not a shape to see -- and the chart
+# section stays hidden for it.
+CHART_DEFAULTS = {
+    "1 — Amenity Revenue": {"x": "month", "y": "pct_of_month_revenue", "series": "ac_segment"},
+    "2 — Neighborhood Pricing": {"x": "neighborhood", "y": "avg_price_increase", "series": "(none)"},
+    "3 — Long Stay / Picky Renter": None,
+}
+
 
 def run_query(sql: str) -> pd.DataFrame:
     """Execute one statement on a short-lived read-only connection."""
@@ -181,13 +191,33 @@ if st.button("Run", type="primary") or sql.strip():
     st.download_button("Download CSV", df.to_csv(index=False), "result.csv", "text/csv")
 
     numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
-    if not df.empty and numeric_cols:
+    defaults = CHART_DEFAULTS.get(preset, {})
+    if defaults is None:
+        st.caption("This preset is read from the table — no chart by default. "
+                   "Switch preset or edit the SQL to chart it.")
+    elif not df.empty and numeric_cols:
         st.subheader("Chart")
+
+        def default_index(options, wanted):
+            return options.index(wanted) if wanted in options else 0
+
+        # Keys carry the preset and the result's columns, so defaults
+        # re-apply when either changes instead of stale selections lingering.
+        key_suffix = f"{preset}-{'|'.join(df.columns)}"
+        x_options = list(df.columns)
+        series_options = ["(none)"] + list(df.columns)
+
         c1, c2, c3, c4 = st.columns(4)
-        chart_type = c1.selectbox("Type", list(CHART_TYPES))
-        x_col = c2.selectbox("X", list(df.columns))
-        y_col = c3.selectbox("Y", numeric_cols)
-        color_col = c4.selectbox("Series", ["(none)"] + list(df.columns))
+        chart_type = c1.selectbox("Type", list(CHART_TYPES), key=f"type-{key_suffix}")
+        x_col = c2.selectbox("X", x_options,
+                             index=default_index(x_options, defaults.get("x")),
+                             key=f"x-{key_suffix}")
+        y_col = c3.selectbox("Y", numeric_cols,
+                             index=default_index(numeric_cols, defaults.get("y")),
+                             key=f"y-{key_suffix}")
+        color_col = c4.selectbox("Series", series_options,
+                                 index=default_index(series_options, defaults.get("series", "(none)")),
+                                 key=f"series-{key_suffix}")
 
         encoding = {
             "x": alt.X(x_col, sort=None),
