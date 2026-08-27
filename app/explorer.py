@@ -19,6 +19,7 @@ import altair as alt
 import duckdb
 import pandas as pd
 import streamlit as st
+from code_editor import code_editor
 
 DB_PATH = Path("data/dev.duckdb")
 
@@ -137,6 +138,50 @@ def run_query(sql: str) -> pd.DataFrame:
         return con.execute(sql).df()
 
 
+# The editor's Run button: commits the editor text back to the app, which
+# then executes it. Everything else (chart tweaks, preset browsing) reruns
+# the last committed SQL, so half-typed queries never execute.
+RUN_BUTTON = {
+    "name": "Run",
+    "feather": "Play",
+    "primary": True,
+    "hasText": True,
+    "showWithIcon": True,
+    "commands": ["submit"],
+    "style": {"bottom": "0.44rem", "right": "0.4rem"},
+}
+
+
+@st.cache_data
+def schema_completions() -> list[dict]:
+    """Autocomplete entries derived from the live schema: every table and
+    column name, so the editor completes listing_days and
+    has_air_conditioning, not just SQL keywords. Cached per session -- a
+    schema change shows up on app restart."""
+    cols = run_query("""
+        select table_schema, table_name, column_name
+        from information_schema.columns
+        order by 1, 2, ordinal_position
+    """)
+
+    completions = [
+        {"caption": s, "value": s, "meta": "schema", "score": 500}
+        for s in cols["table_schema"].unique()
+    ]
+    for (schema, table), grp in cols.groupby(["table_schema", "table_name"], sort=False):
+        completions.append(
+            {"caption": table, "value": table, "meta": schema, "score": 450}
+        )
+    # One entry per distinct column name: listing_id exists on nine tables,
+    # and nine identical popup rows help nobody. The meta names the table
+    # where the name is unique to one, and counts them where it is not.
+    by_name = cols.groupby("column_name")["table_name"].unique()
+    for name, tables in by_name.items():
+        meta = tables[0] if len(tables) == 1 else f"{len(tables)} tables"
+        completions.append({"caption": name, "value": name, "meta": meta, "score": 400})
+    return completions
+
+
 def list_tables() -> pd.DataFrame:
     return run_query("""
         select table_schema as schema, table_name as name,
@@ -177,9 +222,21 @@ with st.sidebar:
 
 # ---- main: editor, results, chart ------------------------------------------
 default_sql = PRESETS.get(preset, "select * from main.listing_days limit 100")
-sql = st.text_area("SQL (read-only connection)", value=default_sql, height=220)
+st.caption("SQL on a read-only connection. Autocomplete knows the live schema's "
+           "tables and columns — Ctrl+Space or just type; **Run** (in the editor) "
+           "executes.")
+response = code_editor(
+    default_sql,
+    lang="sql",
+    height=[10, 18],
+    completions=schema_completions(),
+    options={"enableBasicAutocompletion": True, "enableLiveAutocompletion": True, "wrap": True},
+    buttons=[RUN_BUTTON],
+    key=f"editor-{preset}",
+)
+sql = (response.get("text") or "").strip() or default_sql
 
-if st.button("Run", type="primary") or sql.strip():
+if sql:
     try:
         df = run_query(sql)
     except Exception as exc:
