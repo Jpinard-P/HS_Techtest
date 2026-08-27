@@ -106,75 +106,41 @@ toolchain never install a web stack they don't use.
 
 ## The decisions that matter
 
+Each of these is told in full — evidence, alternatives, and consequences — in
+[`docs/data_story.md`](docs/data_story.md). This is the short form.
+
 ### 1. `listing_days` is built on the calendar, not the listing
 
-In the raw extract, listing `276450` has 365 calendar days and 2 amenity
-changes but **no row in `LISTINGS`** — its ID is nulled at source. An inner
-join from the calendar to the raw listings drops those 365 days silently, and
-that single join choice moves the answer to problem 1:
+Listing `276450` has 365 calendar days and 2 amenity changes, but the
+`LISTINGS` row describing it arrives with a NULL ID. An inner join from the
+calendar to the raw listings drops those days silently — and moves problem
+1's answer from **21.2%** (the published figure) to 22.1%. So the fact is
+built from the calendar spine outwards, and `has_listing_record` marks any
+row whose listing has no descriptive record: an orphan is a flagged row,
+never a silent absence.
 
-| | July 2022 revenue without AC |
-| --- | --- |
-| Orphan kept | **21.2%** ← matches the brief |
-| Orphan dropped | 22.1% |
-
-So the fact is built from the calendar spine outwards, and `has_listing_record`
-marks any row whose listing has no descriptive record. Building on the spine is
-what makes an orphan *visible and recoverable* rather than absent — and it is
-what made `276450` recoverable at all.
-
-Because that ID is recovered in staging (below), the built project has no
-orphan left: `has_listing_record` is true on every row, every calendar listing
-resolves in `stg_listings`, and the 22.1% is only reachable by excluding
-`276450` on purpose. The spine and the flag stay, because they are the
-mechanism that surfaces the *next* orphan the same way.
-
-#### Recovering `276450`'s ID
-
-The ID is restored in `stg_listings`, not in `data/LISTINGS.csv`. The extract
-stays byte-identical, the inference lives in code that can be reviewed and
-reverted, and it is re-checked on every build by
-`assert_recovered_listing_matches_its_evidence`.
-
-It is a deduction, so it is worth stating what it rests on:
-
-| Fact | Why it discriminates |
-| --- | --- |
-| `CALENDAR` and `AMENITIES_CHANGELOG` each cover 50 listings; `LISTINGS` identifies 49 and holds two NULL-ID rows, one of them the synthetic `TESTING LISTING` (`HOST_ID -99999`, `ACCOMMODATES 99`) | leaves exactly one real unidentified row and exactly one unclaimed ID |
-| The row is priced `$280.00` — unique across all 51 raw rows — and that is `276450`'s calendar price on the calendar's first day | `PRICE` is documented as the price "as of the start of the date range in `CALENDAR`", so these must agree |
-| Its amenity set is exactly equal, 28 of 28, to `276450`'s **latest** changelog version (`2021-02-01`). Only 2 of the 100 changelog rows match this set at all; the other belongs to `349347`, the sibling unit, which is already identified | all 49 identified listings have `LISTINGS.AMENITIES` equal to their own latest changelog version, so this row conforming to that pattern for `276450` is exactly what a genuine record looks like |
-| Host `814298` also owns `349347`, *"…South End 1BR 1BA #2"*, same neighborhood. This row is *"#3"* | the sibling unit |
-
-Nothing is invented: the other 19 of the row's 20 columns are real source
-data — only the ID is missing. Recovering it moves no published answer: the
-listing is in **Roxbury**, not Back Bay, so the Back Bay $44 stands, and its
-amenities resolve through the changelog either way, so the 21.2% stands. One
-unpublished number does move, deliberately: with `276450` identified, the
-neighborhood cut in problem 2 no longer excludes it, so Roxbury averages 13
-listings (−$6.15) rather than 12 ($0.00).
-
-It remains an inference from the data rather than a source-system confirmation,
-which is why the evidence above is a test and not a comment.
+The ID itself is recovered in `stg_listings` — in code, not in
+`data/LISTINGS.csv`, so the extract stays byte-identical and the inference
+stays reviewable. Four independent facts identify the row (the counts close
+on exactly one unclaimed ID; its unique `$280.00` price equals `276450`'s
+opening calendar price; its amenity set equals `276450`'s latest changelog
+version; its host owns the sibling unit *"#2"* and this row is *"#3"*), and
+`assert_recovered_listing_matches_its_evidence` re-checks all of them on
+every build. Recovering it moves no published answer. The full evidence is
+in the data story, §4.
 
 ### 2. Amenities are type-2 versioned, even though nothing needs it yet
 
-Every one of the 100 amenity changes predates the loaded calendar — the last
-is 2021-07-06, the calendar opens 2021-07-12. Amenities are therefore *constant*
-across the entire reporting period, and `LISTINGS.AMENITIES` equals the latest
-changelog row for all 50 listings — a regularity the ID recovery above leans on.
-
-Which means a current-state join produces identical numbers today, at a
-fraction of the complexity. It was still the wrong choice. The moment one
-change lands inside the loaded calendar, that shortcut starts attributing pre-change
-revenue to post-change amenities, and it does it silently — no error, no row
-count change, just a number that drifts. `int_amenities_versioned` builds
-half-open `[valid_from, valid_to)` ranges, and the mart resolves amenities
-as of each specific day. That day becomes a data change rather than a rebuild.
-
-The first version of each listing is backdated to `-infinity`, because a
-changelog records changes rather than origins. The alternative leaves NULL
-amenities on early days, which drops them out of any amenity segmentation
-instead of announcing itself.
+Every amenity change predates the loaded calendar, so a current-state join
+produces identical numbers today at a fraction of the complexity — and it is
+still the wrong choice. The first change that lands inside the calendar makes
+that shortcut attribute pre-change revenue to post-change amenities,
+silently. `int_amenities_versioned` builds half-open `[valid_from,
+valid_to)` ranges and the mart resolves amenities as of each specific day,
+so that day becomes a data change rather than a rebuild. Each listing's
+first version is backdated to `-infinity`: a changelog records changes, not
+origins, and NULL amenities on early days would drop out of segmentations
+without announcing themselves.
 
 ### 3. `revenue` and `nightly_price` are separate columns
 
@@ -189,37 +155,16 @@ A test enforces the relationship between them.
 
 ### 4. Analysis periods live in analyses, not in the model
 
-Problem 2 names two dates: 2021-07-12 and 2022-07-11. The loaded calendar
-happens to span exactly those dates, which makes it tempting to treat them as
-one thing. They are not.
-
-`2021-07-12 → 2022-07-11` is **the parameter of one business question**. The
-calendar's extent is **a property of the data**, and it changes whenever more
-data lands. Conflating them produces a specific, silent failure: derive
-problem 2's endpoints from `MIN`/`MAX` of the calendar, load one more day, and
-the answer to a question that named its own dates quietly changes — with no
-error and no row-count difference to notice.
-
-So the two are kept apart:
-
-| | Where it lives | How it behaves when more calendar loads |
-| --- | --- | --- |
-| Problem 2's comparison period | Literals in `analyses/02` (and, independently, in the golden-answer test) | Unchanged — it is pinned |
-| Calendar coverage | Derived from the data in every model | Extends automatically |
-
-The dates are literals in the query rather than project-level `vars`: the
-question names its own dates, so the query should too, in the file the reader
-is already looking at. Vars were tried and walked back — the indirection sent
-readers to `dbt_project.yml` to learn what a self-describing question runs
-on, and a config edit once dropped the vars and broke the analysis silently,
-which is part of why CI compiles analyses.
-
-**No model hardcodes a date.** Every coverage flag — `is_complete_month`,
-`days_of_month_in_calendar`, `starts_at_calendar_start`,
-`available_run_touches_calendar_edge` — is computed against the calendar's own
-extent at run time, so extending the calendar corrects them without a code
-change. The columns are named for the calendar rather than for a "window"
-precisely so that nobody reads them as a business period.
+Problem 2's dates — 2021-07-12 and 2022-07-11 — are parameters of one
+business question; the calendar's extent is a property of the data. The two
+coincide in this extract, and conflating them means loading one more day of
+calendar silently changes the answer to a question that named its own dates.
+So the dates are pinned as literals in `analyses/02` (and, independently, in
+the golden-answer test) — literals rather than project `vars`, because a
+question that names its own dates should name them in the file the reader is
+already looking at. **No model hardcodes a date**: every coverage flag is
+computed against the calendar's own extent at run time, so extending the
+calendar corrects them without a code change.
 
 ### 5. Partial months are flagged, not hidden
 
@@ -246,32 +191,18 @@ without waiting for a new flag column.
 
 ### 7. Prices carry their currency, parsed rather than assumed
 
-The documentation says every price is USD, and today every raw price is
-either dollar-marked (`"$280.00"` in `LISTINGS`) or unmarked (`CALENDAR`).
-The tempting transformation is `replace(price, '$', '')` — and it has a
-specific failure mode: the day a `€` appears, the strict cast breaks the
-build with a conversion error that names a symptom, not the problem.
-
-Instead, the `parse_price` macros split every price into the two facts it
-carries. The amount is cast strictly, exactly as before. The leading symbol
-is matched with `\p{Sc}` — the Unicode *currency symbol* class, so any
-currency symbol is captured, not just the ones anticipated — and resolved to
-an ISO code against the `currency_symbols` seed. The failure modes are now
-graded rather than uniform:
-
-| Input | Behavior |
-| --- | --- |
-| `$280.00`, bare `125` | `USD` — marked, or the documented default |
-| `€1,234.56` | `EUR` — parses today, no code change |
-| `₿99.00` (symbol not in the seed) | currency is NULL → `not_null` fails **naming the rows**; the fix is one row in `seeds/currency_symbols.csv` |
-| `N/A` (not a price at all) | strict cast still fails the build loudly |
-
-`price_currency` rides through to both marts, and
-`assert_prices_share_one_currency` is the tripwire on top: the first
-non-USD price fails the build, because every `SUM(revenue)` and price delta
-in the reporting layer is only meaningful in one currency — the choice to
-filter, convert, or segment must be made by a person, not defaulted to a
-mixed-unit total.
+The documentation says every price is USD, and `replace(price, '$', '')`
+works — until the first `€`, when the strict cast breaks the build with an
+error naming a symptom rather than the problem. The `parse_price` macros
+instead split every price into its amount (cast strictly) and its currency
+symbol, matched with `\p{Sc}` — the Unicode *currency symbol* class — and
+resolved to an ISO code against the `currency_symbols` seed. The failure
+modes are graded: a `€` price parses as `EUR` with no code change, a symbol
+the seed does not map fails `not_null` **naming the rows**, and a non-price
+still fails the cast loudly. On top, `assert_prices_share_one_currency`
+fails the build on the first non-USD price: a `SUM` across currencies is not
+a number, and the choice to filter, convert, or segment must be made by a
+person, not defaulted to a mixed-unit total.
 
 ### 8. Gaps-and-islands is solved once, in the model
 
@@ -391,23 +322,19 @@ that the mart's promises hold:
 
 ### The remaining warning is a real finding, not noise
 
-It warns rather than errors because it is a source data problem this project
-should surface, not silently repair:
+Reservation `836` appears on two listings on the calendar's first day, and —
+unlike the orphaned listing — nothing in the data says which one it belongs
+to, so the test **warns** rather than repairs: a source-data problem this
+project surfaces upward instead of fixing on a hunch (the full story is in
+the data story, §5). It is the only warning. The two `relationships` tests
+on `stg_calendar` and `stg_amenities_changelog` **error** rather than warn:
+every listing they reference resolves in `stg_listings`, so a broken foreign
+key means the extract has changed in a way nobody has looked at, and should
+stop the build.
 
-- **Shared reservation id** — reservation `836` appears on two listings on
-  2021-07-12, the calendar's first day. Reservation ids are otherwise allocated
-  in contiguous per-listing blocks, so this looks like an off-by-one where two
-  blocks meet at the boundary. Unlike the orphaned listing, it cannot be
-  resolved from the data: nothing says which of the two listings the
-  reservation belongs to.
-
-It is the only one. The two `relationships` tests on `stg_calendar` and
-`stg_amenities_changelog` **error** rather than warn: every listing they
-reference resolves in `stg_listings`, so a broken foreign key means the extract
-has changed in a way nobody has looked at, and should stop the build.
-
-Full write-up, including the source-type contract and its two unreproducible
-types, is in [`docs/source_type_contract.md`](docs/source_type_contract.md).
+The raw layer's typing rules, and the two places they deviate from the
+source documentation, are in
+[`docs/source_type_contract.md`](docs/source_type_contract.md).
 
 ---
 

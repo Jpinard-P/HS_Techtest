@@ -141,11 +141,14 @@ on the project's follow-up list.
 
 ## 5. The shared reservation: surfaced, because the evidence does not
 
-Reservation `836` sits on two different listings on the calendar's first day.
-The block-allocation pattern of the other reservation ids suggests an
-off-by-one at the boundary — but nothing in the data says *which* of the two
-listings the reservation truly belongs to. Repairing it would mean moving a
-night of revenue between two hosts on a hunch.
+Reservation `836` sits on two different listings — `753446` and `801680` — on
+the calendar's first day, and it is the *only* reservation on `753446`.
+Reservation ids are otherwise allocated in contiguous per-listing blocks
+(listing `3781` holds ids 1–41, `5506` holds 42–89), so this looks like an
+off-by-one where two blocks meet at the opening boundary — but nothing in the
+data says *which* of the two listings the reservation truly belongs to.
+Repairing it would mean moving a night of revenue between two hosts on a
+hunch.
 
 So it is not repaired. `assert_reservation_covers_one_listing` **warns** —
 deliberately warns rather than errors, because this is a source-data problem
@@ -291,7 +294,10 @@ analyst might silently make is either made safe or made visible:
 - **Business dates cannot drift with the data.** No model hardcodes a date;
   every coverage flag is computed from the calendar's own extent at run time.
   Question parameters live pinned in the analyses that ask them. Neither can
-  contaminate the other.
+  contaminate the other — and the coverage columns are named for the
+  *calendar* (`days_of_month_in_calendar`, `available_run_touches_calendar_edge`)
+  rather than for a "window", precisely so nobody reads them as a business
+  period.
 - **Edge effects are labelled.** `available_run_touches_calendar_edge` marks
   stays that are lower bounds, not measurements.
 - **The published answers are a contract.** `assert_published_answers_hold`
