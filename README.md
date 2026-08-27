@@ -6,6 +6,11 @@ A dbt project over three source files (`LISTINGS`, `CALENDAR`,
 `AMENITIES_CHANGELOG`) that produces a day/listing mart for revenue,
 occupancy, and point-in-time amenity analysis.
 
+For the end-to-end narrative — every data issue in the extract, what is done
+about each (and what deliberately isn't), how each layer transforms the data,
+how the marts answer the brief's three questions, and the guardrails against
+misuse — see [`docs/data_story.md`](docs/data_story.md).
+
 ```
 models/
 ├── staging/                    views · schema: main_staging
