@@ -1,0 +1,78 @@
+version: 2
+
+models:
+  - name: reservations
+    description: >
+      Reporting mart: one row per stay, at (listing_id, reservation_id)
+      grain. Aggregated from listing_days rather than from staging, so it
+      inherits the incremental mart's retained history -- a stay whose days
+      have aged out of the source's rolling window survives here for as long
+      as listing_days holds its days -- and so its revenue is a straight sum
+      of the mart's, never a second derivation that can drift.
+
+      Stays touching either edge of the mart's coverage are only partly
+      visible: their nights and revenue are lower bounds, and
+      is_truncated_by_calendar marks them so a length-of-stay analysis can
+      exclude them with one WHERE clause.
+    columns:
+      - name: listing_id
+        description: >
+          The listing the stay occupies. Half the grain: reservation_id alone
+          is not globally unique (reservation 836 appears on two listings),
+          so every join to this table must use both columns.
+        data_tests:
+          - not_null:
+              description: >
+                Half the grain, and the column
+                assert_reservations_grain_is_unique groups by -- a NULL would
+                evade that uniqueness check.
+      - name: reservation_id
+        description: The reservation. The other half of the grain.
+        data_tests:
+          - not_null:
+              description: >
+                Rows are built only from reserved nights, where
+                reservation_id is never NULL (staging tests pin that), so a
+                NULL here means the build logic broke, not the data.
+      - name: has_listing_record
+        description: Whether the stay's listing has a descriptive record in LISTINGS. Same contract as listing_days.
+      - name: listing_name
+        description: Display name of the listing.
+      - name: host_id
+        description: Host who owns the property.
+      - name: neighborhood
+        description: Neighborhood of the listing.
+      - name: property_type
+        description: Type of property.
+      - name: room_type
+        description: Type of room.
+      - name: accommodates
+        description: Guests the listing sleeps.
+      - name: first_night
+        description: First visible night of the stay. If starts_at_calendar_start, the real first night may be earlier.
+      - name: last_night
+        description: Last visible night of the stay. If ends_at_calendar_end, the real last night may be later.
+      - name: reservation_nights
+        description: Visible nights in the stay. A lower bound where is_truncated_by_calendar.
+      - name: weekend_nights
+        description: How many of the visible nights fall on Saturday or Sunday.
+      - name: reservation_revenue
+        description: >
+          What the visible nights earned, in price_currency. Sums to exactly
+          listing_days' total revenue across the mart --
+          assert_reservations_preserve_reserved_days pins that.
+      - name: average_nightly_price
+        description: Mean nightly price across the stay's visible nights.
+      - name: price_currency
+        description: >
+          ISO 4217 currency of the money columns. Single-valued per stay
+          while assert_prices_share_one_currency holds mart-wide.
+      - name: starts_at_calendar_start
+        description: The stay's first visible night is the first day the mart covers, so the stay may begin earlier.
+      - name: ends_at_calendar_end
+        description: The stay's last visible night is the last day the mart covers, so the stay may continue.
+      - name: is_truncated_by_calendar
+        description: >
+          Either edge flag. Filter this out of any length-of-stay or
+          revenue-per-stay average: truncated stays are lower bounds, and
+          averaging them in understates both measures without any error.

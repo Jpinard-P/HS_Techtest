@@ -19,7 +19,9 @@ models/
 │   └── int_calendar_days_grouped_into_availability_runs.sql/.yml
 └── marts/                      tables · schema: main
     ├── listing_days.sql/.yml           ← the day/listing mart
-    └── listings.sql/.yml
+    ├── listings.sql/.yml               ← one row per listing
+    ├── reservations.sql/.yml           ← one row per stay
+    └── hosts.sql/.yml                  ← one row per host
 
 seeds/currency_symbols.csv/.yml         currency symbol → ISO code lookup
 macros/parse_price.sql                  price text → amount + currency symbol
@@ -28,7 +30,7 @@ macros/parse_price.sql                  price text → amount + currency symbol
 Verify with:
 
 ```bash
-dbt build      # 57 nodes, 0 errors, 1 intentional warning (below)
+dbt build      # 66 nodes, 0 errors, 1 intentional warning (below)
 dbt compile    # analyses are NOT compiled by `build` -- a broken one ships green
 ```
 
@@ -298,6 +300,8 @@ growth driver, not a layer default applied uniformly.
 | `int_calendar_days_grouped_into_availability_runs` | vacancy run | calendar | view | Gaps-and-islands is **structurally non-incremental**: adding one day can extend, split, or merge an existing run, so any slice-based build corrupts the runs that straddle its edge. Always computed over the full calendar. |
 | `listings` | listing | listings | table | ~50 rows. Read by the reporting layer, so it is materialized, but a full rebuild is instant and there is nothing to accumulate. |
 | `listing_days` | listing-day | **listings × days** | **incremental** | The only model where incremental is warranted. Reasons below. |
+| `reservations` | stay | bookings | table | Aggregated from `listing_days`, not staging, so it inherits the incremental mart's retained history and its revenue is a straight sum of the mart's — a rebuild re-aggregates the mart, not the source window. |
+| `hosts` | host | hosts | table | ~36 rows, rolled up from `listings` so per-listing occupancy and revenue are computed once, there. |
 
 ### Why `listing_days` is incremental — retention, not speed
 
@@ -345,7 +349,7 @@ slice. That is also the design's ceiling. In order, the levers are:
 
 ## Testing
 
-57 nodes, 48 tests — 47 passing, 1 deliberate warning.
+66 nodes, 55 tests — 54 passing, 1 deliberate warning.
 
 The suite deliberately excludes tests that cannot fail. A `not_null` on
 `has_listing_record` (`x is not null` never returns NULL), on `valid_to`
@@ -411,7 +415,7 @@ exercising once a `dev.duckdb` exists.
 | Step | Catches |
 | --- | --- |
 | `dbt parse --no-partial-parse` | Deprecations and YAML errors that a warm partial parse hides |
-| `dbt build` | Model failures and all 48 tests, including the golden-answer guard |
+| `dbt build` | Model failures and all 55 tests, including the golden-answer guard |
 | `check_warnings.py` | A *new* data-quality warning appearing |
 | `dbt compile` | Broken analyses — **`build` does not compile them** |
 | `dbt docs generate` | A docs site that no longer builds |
@@ -552,9 +556,18 @@ and bedroom counts all change at source with no history retained.
   stay this long is offered" needs `minimum_nights`, which the mart carries
   per day. A `meets_minimum_stay` flag on the run would make that check
   one column instead of two.
-- **Add an amenity bridge table** (`listing_day × amenity`) if amenity analysis
-  broadens beyond a handful of flags — grouping by amenity is awkward against an
-  array column.
+- **Add an amenity bridge table** when amenity analysis broadens beyond the
+  three flag columns. Grain: one row per `(listing_id,
+  amenity_version_number, amenity)` — `int_amenities_versioned` unnested,
+  ~3,000 rows today. The value is making the amenity a first-class row
+  instead of an array element: `GROUP BY amenity` across the 81-value
+  vocabulary answers "which amenities correlate with occupancy or price?"
+  without each analyst writing their own `unnest`, and joining to
+  `listing_days` on listing and version keeps every cut point-in-time
+  correct. Deliberately not built yet: the flag columns cover every amenity
+  question actually asked, and each mart is a contract to test and maintain
+  — the bridge earns its keep the first time someone asks about an amenity
+  that has no flag.
 - **Snapshot `LISTINGS`.** Price, review scores, and bedroom counts all change
   at source with no history kept; today's mart can only ever show their current
   values.
