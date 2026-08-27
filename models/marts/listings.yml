@@ -91,8 +91,14 @@ models:
       - name: has_first_aid_kit
         description: Current state. Exact match on 'First aid kit'.
       - name: nights_in_calendar
-        description: Calendar nights this listing has inside the loaded calendar.
+        description: >
+          Calendar nights this listing has in listing_days -- everything the
+          mart retains, not just what the source currently publishes, so
+          this and the stay mart always share one coverage basis.
       - name: nights_reserved
-        description: Nights reserved inside the loaded calendar. Divided by nights_in_calendar, the listing's occupancy rate.
+        description: Nights reserved across those nights. Divided by nights_in_calendar, the listing's occupancy rate.
       - name: revenue_in_calendar
-        description: Total earned revenue inside the loaded calendar.
+        description: >
+          Total earned revenue across the retained calendar. A straight sum
+          of listing_days.revenue, so it can never drift from the fact or
+          from the stay mart.

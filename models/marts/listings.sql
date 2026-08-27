@@ -27,14 +27,21 @@ current_amenities as (
 
 ),
 
+-- Aggregated from listing_days, not stg_calendar, for the same reason
+-- reservations is: the incremental mart retains days that age out of the
+-- source's rolling window, and staging only ever sees the current window.
+-- Rolled up from staging, these totals would silently cover a different
+-- period than the stay mart's the moment the window moves -- two coverage
+-- bases for "revenue" with nothing to say so. Every money column in the
+-- project flows from listing_days.revenue, by construction.
 calendar_activity as (
 
     select
         listing_id,
-        count(*)                                          as nights_in_calendar,
-        sum(case when not is_available then 1 else 0 end) as nights_reserved,
-        sum(case when not is_available then calendar_price else 0 end) as revenue_in_calendar
-    from {{ ref('stg_calendar') }}
+        count(*)                                     as nights_in_calendar,
+        sum(cast(is_reserved as int))                as nights_reserved,
+        sum(revenue)                                 as revenue_in_calendar
+    from {{ ref('listing_days') }}
     group by 1
 
 ),
