@@ -17,7 +17,7 @@ models:
       source calendar contains, and every coverage flag on it is derived from
       the data at run time, so loading more calendar extends the mart and
       corrects the flags without a code change. Analysis periods belong in the
-      queries that need them -- see the vars used by
+      queries that need them -- see the pinned dates in
       analyses/02_neighborhood_price_increase.sql.
 
       Two things to know before using it. First, the loaded calendar does not

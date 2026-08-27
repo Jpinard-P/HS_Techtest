@@ -32,8 +32,11 @@ back_bay_price_increase as (
     from (
         select
             listing_id,
-            max(case when calendar_date = cast('{{ var("price_comparison_start_date") }}' as date) then nightly_price end) as price_at_start,
-            max(case when calendar_date = cast('{{ var("price_comparison_end_date") }}'   as date) then nightly_price end) as price_at_end
+            -- The question's own dates, pinned here as well as in
+            -- analyses/02 -- a golden test should be self-contained, so it
+            -- deliberately shares nothing with the query it guards.
+            max(case when calendar_date = date '2021-07-12' then nightly_price end) as price_at_start,
+            max(case when calendar_date = date '2022-07-11' then nightly_price end) as price_at_end
         from {{ ref('listing_days') }}
         where neighborhood = 'Back Bay'
         group by 1
