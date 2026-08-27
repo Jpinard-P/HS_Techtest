@@ -23,10 +23,12 @@ import streamlit as st
 DB_PATH = Path("data/dev.duckdb")
 
 # Preset queries, written against the marts the way an analyst would write
-# them. The first three mirror analyses/01-03; the SQL is repeated here
-# rather than read from target/compiled so the app has no dbt dependency.
+# them. The first three are the brief's business problems, named as the brief
+# names them, and mirror analyses/01-03; the SQL is repeated here rather than
+# read from target/compiled so the app has no dbt dependency. Dict order is
+# display order: the three problems first, everything else below a divider.
 PRESETS = {
-    "Monthly revenue by air conditioning (problem 1)": """\
+    "1 — Amenity Revenue": """\
 select
     strftime(month_start_date, '%Y-%m') as month,
     case when has_air_conditioning then 'With AC' else 'Without AC' end as ac_segment,
@@ -40,7 +42,7 @@ from main.listing_days
 group by month_start_date, has_air_conditioning
 order by month, ac_segment
 """,
-    "Neighborhood price increase (problem 2)": """\
+    "2 — Neighborhood Pricing": """\
 with listing_endpoints as (
     select
         listing_id,
@@ -60,7 +62,7 @@ where price_at_start is not null and price_at_end is not null
 group by 1
 order by avg_price_increase desc
 """,
-    "Longest possible stay: lockbox + first aid kit (problem 3)": """\
+    "3 — Long Stay / Picky Renter": """\
 select
     listing_id,
     any_value(neighborhood) as neighborhood,
@@ -148,7 +150,13 @@ if not Path("data/LISTINGS.csv").exists():
 # ---- sidebar: presets and schema browser -----------------------------------
 with st.sidebar:
     st.header("Queries")
-    preset = st.selectbox("Preset", ["(custom)"] + list(PRESETS))
+    problem_presets = list(PRESETS)[:3]
+    extra_presets = list(PRESETS)[3:]
+    divider = "─" * 24
+    preset = st.selectbox(
+        "Preset",
+        problem_presets + [divider] + extra_presets + ["(custom)"],
+    )
     st.header("Tables")
     st.caption("`main` is the analyst contract; the other schemas are the "
                "layers behind it.")
