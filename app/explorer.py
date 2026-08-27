@@ -90,6 +90,21 @@ from main.listing_days
 group by 1
 order by revenue desc
 """,
+    "Stays: length and revenue per booking": """\
+select
+    listing_id, reservation_id, neighborhood,
+    first_night, reservation_nights, weekend_nights,
+    reservation_revenue, average_nightly_price, is_truncated_by_calendar
+from main.reservations
+order by reservation_nights desc
+""",
+    "Host portfolios": """\
+select
+    host_id, host_name, listings_count, neighborhoods_count,
+    neighborhoods, occupancy_rate, revenue_in_calendar, average_review_score
+from main.hosts
+order by revenue_in_calendar desc
+""",
     "Listings overview": """\
 select
     listing_id, listing_name, neighborhood, property_type, room_type,

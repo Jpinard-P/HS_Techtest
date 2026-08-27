@@ -45,6 +45,14 @@ data_tests:
       last line of defence for that; assert_amenity_versions_do_not_overlap is
       the first.
 
+  - name: assert_reservations_grain_is_unique
+    description: >
+      Asserts the stay mart's grain: one row per (listing_id,
+      reservation_id). The composite key is the contract -- reservation 836
+      appears on two listings, so reservation_id alone is not a key, and any
+      consumer joining on it alone fans out. This is the check that keeps
+      that mistake the consumer's rather than the mart's.
+
   # -- Source contract -------------------------------------------------------
 
   - name: assert_source_columns_match_contract
@@ -158,6 +166,15 @@ data_tests:
       the reason the mart is safe to hand to an analyst, and this test is the
       only thing enforcing it.
 
+  - name: assert_reservations_preserve_reserved_days
+    description: >
+      Asserts that the stay mart accounts for exactly the reserved nights,
+      revenue, and distinct stays that listing_days holds. reservations is a
+      re-aggregation of listing_days, and this is the proof it neither
+      gained nor lost anything on the way -- the stay-mart equivalent of
+      assert_listing_days_preserve_calendar, with the revenue leg again the
+      commercially meaningful one.
+
   - name: assert_max_bookable_nights_respects_limits
     description: >
       Asserts that max_bookable_nights never exceeds either constraint it is
@@ -196,6 +213,14 @@ data_tests:
       is the tripwire: the first non-USD price fails the build and forces a
       decision -- filter, convert, or segment -- rather than letting mixed
       units land in a metric that still looks like a number.
+
+  - name: assert_host_attributes_agree
+    description: >
+      Asserts that every listing a host owns repeats identical host_name,
+      host_since, and host_location. The hosts dimension reads these with
+      any_value, which is only honest while this holds -- an extract that
+      disagrees with itself about a host would otherwise have any_value
+      silently pick whichever version the scan saw first.
 
   # -- Regression guard ------------------------------------------------------
 
