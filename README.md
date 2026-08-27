@@ -176,8 +176,15 @@ So the two are kept apart:
 
 | | Where it lives | How it behaves when more calendar loads |
 | --- | --- | --- |
-| Problem 2's comparison period | `vars` in `dbt_project.yml`, read by `analyses/02` | Unchanged — it is pinned |
+| Problem 2's comparison period | Literals in `analyses/02` (and, independently, in the golden-answer test) | Unchanged — it is pinned |
 | Calendar coverage | Derived from the data in every model | Extends automatically |
+
+The dates are literals in the query rather than project-level `vars`: the
+question names its own dates, so the query should too, in the file the reader
+is already looking at. Vars were tried and walked back — the indirection sent
+readers to `dbt_project.yml` to learn what a self-describing question runs
+on, and a config edit once dropped the vars and broke the analysis silently,
+which is part of why CI compiles analyses.
 
 **No model hardcodes a date.** Every coverage flag — `is_complete_month`,
 `days_of_month_in_calendar`, `starts_at_calendar_start`,

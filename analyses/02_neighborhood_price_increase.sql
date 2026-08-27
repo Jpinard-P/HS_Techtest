@@ -5,12 +5,14 @@
 -- $106 -> $150, so the neighborhood average is $44. This query returns $44.
 --
 -- Those two dates are parameters of *this question*, not properties of the
--- data. They are read from vars (price_comparison_start_date /
--- price_comparison_end_date, set in dbt_project.yml) rather than derived from
+-- data. They are pinned as literals in the CTE below rather than derived from
 -- MIN and MAX of the calendar, because the two are different things that
 -- happen to coincide in the current extract. Deriving them would mean that
 -- loading one more day of calendar silently changes the answer to a question
--- that named its own dates -- and nobody would see it happen.
+-- that named its own dates -- and nobody would see it happen. (They were
+-- once project-level vars; literals won because the question names its own
+-- dates, so the query should too, in the file a reader is already looking
+-- at.)
 --
 -- Two further modelling notes:
 --
@@ -33,8 +35,8 @@
 with comparison_dates as (
 
     select
-        cast('{{ var("price_comparison_start_date") }}' as date) as start_date,
-        cast('{{ var("price_comparison_end_date") }}'   as date) as end_date
+        date '2021-07-12' as start_date,
+        date '2022-07-11' as end_date
 
 ),
 
