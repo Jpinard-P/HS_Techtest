@@ -338,7 +338,7 @@ against everything the source publishes rather than against the incremental
 slice. That is also the design's ceiling. In order, the levers are:
 
 1. **Materialize `stg_calendar` as a table if the source stays a file.** It is
-   referenced 15 times across models and tests, and every reference re-parses
+   referenced 17 times across models and tests, and every reference re-parses
    the CSV. Against a warehouse table a view costs nothing, which is why it is
    still a view here — but a file-backed source flips that calculation
    immediately, and this is the first thing to change.
