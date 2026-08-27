@@ -51,61 +51,31 @@ and in a comment on the source itself.
 
 ## Where the data contradicts the documentation
 
-These are data-quality facts, not typing problems. They are handled in
-staging and repeated here because each one breaks a guarantee the
-documentation makes:
+These are data-quality facts rather than typing problems. Each breaks a
+guarantee the documentation makes; the full ledger — every issue, its
+disposition, and the evidence behind each call — is in
+[`data_story.md`](data_story.md), §3–§5. In brief:
 
 - **`LISTINGS.ID` is documented as the Primary Key, but two rows have no ID.**
-  One is an obvious test record (`TESTING LISTING`, `HOST_ID = -99999`); the
-  other looks like a real listing. Neither can be joined to `CALENDAR` or
-  `AMENITIES_CHANGELOG`, so `stg_listings` drops both.
+  One is a synthetic test record (`TESTING LISTING`, `HOST_ID = -99999`) and
+  is dropped in `stg_listings`. The other is a real listing whose ID is
+  recovered as `276450` — in `stg_listings`, not in the CSV, so the extract
+  stays byte-identical — on four independent facts that
+  `assert_recovered_listing_matches_its_evidence` re-checks on every build.
+  Because every referenced listing therefore resolves, the two
+  `relationships` tests error rather than warn. (When re-deriving the
+  amenity evidence, compare the sets, not the raw strings: the two files
+  format the same JSON array differently, so a string comparison reports no
+  matches anywhere.)
 - **`CALENDAR`'s documented `(LISTING_ID, DATE)` primary key is not unique.**
-  Listing `1303261` on `2022-07-07` appears three times. All three rows are
-  identical in every column, so `stg_calendar` collapses them with `DISTINCT`
-  and a singular test guards the grain from here on.
-
-- **`CALENDAR` and `AMENITIES_CHANGELOG` reference a listing whose ID is nulled
-  in `LISTINGS`.** Listing `276450` has 365 calendar rows and 2 changelog rows;
-  the `LISTINGS` row that describes it arrives with a NULL `ID`. `stg_listings`
-  restores the ID rather than the CSV doing so, which keeps the extract
-  byte-identical and the inference reviewable and revertible.
-
-  Four independent facts identify the row, and
-  `assert_recovered_listing_matches_its_evidence` re-checks them on every build:
-
-  1. **The arithmetic closes.** `CALENDAR` and `AMENITIES_CHANGELOG` each cover
-     50 listings; `LISTINGS` identifies 49 and carries two NULL-ID rows, one of
-     which is the synthetic `TESTING LISTING` (`HOST_ID -99999`,
-     `ACCOMMODATES 99`). That leaves exactly one real unidentified row and
-     exactly one unclaimed ID.
-  2. **Price.** The row is priced `$280.00` — unique across all 51 raw rows —
-     which is exactly `276450`'s calendar price on the first day of the loaded
-     calendar, and `PRICE` is documented as the price "as of the start of the
-     date range in `CALENDAR`".
-  3. **Amenities.** Its amenity set is exactly equal (28 of 28) to `276450`'s
-     *latest* changelog version, `2021-02-01`. That is the pattern every
-     identified listing follows — all 49 have `LISTINGS.AMENITIES` equal to
-     their own latest changelog version — so the recovered row behaves exactly
-     as a genuine record should. Only two of the 100 changelog rows match this
-     set at all, and the other belongs to `349347`, the sibling unit, which is
-     already identified. (Compare the sets, not the raw strings: the two files
-     format the same JSON array differently, so a string comparison reports no
-     matches anywhere.)
-  4. **Household.** Host `814298` also owns `349347`, *"…South End 1BR 1BA #2"*,
-     in the same neighborhood. The recovered row is *"#3"* — the sibling unit.
-
-  Because every referenced listing therefore resolves, the two `relationships`
-  tests error rather than warn: an unresolvable foreign key means the extract
-  has broken in a way nobody has looked at. This remains an inference from the
-  data, not a source-system confirmation;
-  that confirmation is still worth obtaining.
-
-- **One reservation id spans two listings.** Reservation `836` appears on both
-  `753446` and `801680` on `2021-07-12`, the first day of the loaded calendar,
-  and is the only reservation on `753446`. Reservation ids are otherwise
-  allocated in contiguous per-listing blocks (`3781` holds 1-41, `5506` holds
-  42-89), so this looks like an off-by-one where two blocks meet at the
-  calendar's opening boundary. `assert_reservation_covers_one_listing` warns on it.
+  Listing `1303261` on `2022-07-07` appears three times, identical in every
+  column, so `stg_calendar` collapses the rows with `DISTINCT` and a
+  singular test guards the grain from here on.
+- **One reservation id spans two listings.** Reservation `836` appears on
+  both `753446` and `801680` on `2021-07-12`. Nothing in the data says which
+  listing it belongs to, so nothing is repaired:
+  `assert_reservation_covers_one_listing` warns on it, and CI pins the
+  warning.
 
 ## Staging deviates from the raw types on purpose
 
